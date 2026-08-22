@@ -1,0 +1,51 @@
+# How much each kind of observation is worth, per track.
+#
+# The rows are engine vocabulary: the four data families this system collects,
+# with FLIGHT split by FR24 category because a military-coded airframe and a
+# business jet are different evidence. The mission chooses the numbers, not the
+# rows. A weight of 0.0 means "this track does not produce that signal" and
+# must be written out — an omitted weight would score identically and say
+# nothing about whether anyone considered it.
+#
+# Nothing here is calibrated. See mission.yaml.
+
+weights:
+  # A tour is announced loudly and moves by charter. No military airlift.
+  CONCERT_TOUR:
+    social: 0.40
+    flight_M: 0.00
+    flight_J: 0.20
+    lodging: 0.25
+    car: 0.15
+
+  # Supporters travel commercially and in numbers, so the physical signal is
+  # in beds and vehicles rather than in aviation.
+  SPORTING_EVENT:
+    social: 0.35
+    flight_M: 0.00
+    flight_J: 0.15
+    lodging: 0.30
+    car: 0.20
+
+  # Display aviation is the point of the event, so the aircraft ARE the
+  # signal, and a military-coded arrival is the most decisive one available.
+  AIRSHOW:
+    social: 0.25
+    flight_M: 0.35
+    flight_J: 0.15
+    lodging: 0.15
+    car: 0.10
+
+# Which FR24 categories each track asks for. This is what the engine puts in
+# the flight query filter, so a category absent here is never collected for
+# that track — not collected and scored zero, which are different facts.
+flight_categories:
+  CONCERT_TOUR: [J]
+  SPORTING_EVENT: [J, T]
+  AIRSHOW: [M, J, T, H]
+
+# Categories measured as an excess over a rolling median rather than counted
+# outright. Business jets, general aviation and helicopters are ordinary urban
+# traffic; three of them over a city means nothing without knowing that the
+# city usually sees one. Military-coded arrivals are rare enough to count.
+baselined_categories: [J, T, H]

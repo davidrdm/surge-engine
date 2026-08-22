@@ -1,0 +1,30 @@
+# Matching the facility names a model extracts against the ones an operator
+# registered.
+#
+# The engine's matching ladder is generic: normalise, expand abbreviations,
+# compare tokens. What is mission-specific is which different spellings mean
+# the same place, and which words are too common to identify anything.
+
+# Spelling seen -> canonical spelling. Applied after normalisation, so both
+# sides are already lowercased and punctuation-stripped.
+aliases:
+  "sports stadium": "stadium"
+  "athletics stadium": "stadium"
+  "exhibition centre": "exhibition center"
+  "showground": "fairground"
+  "air field": "airfield"
+  "aerodrome": "airfield"
+
+# Words that appear in so many facility names here that matching on one alone
+# would pair unrelated places. A candidate made only of these is refused.
+tokens:
+  - arena
+  - center
+  - centre
+  - field
+  - ground
+  - grounds
+  - hall
+  - park
+  - stadium
+  - venue

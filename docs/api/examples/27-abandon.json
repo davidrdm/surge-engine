@@ -1,0 +1,30 @@
+{
+  "name": "27-abandon",
+  "note": "The lost collection becomes a counted coverage gap, and the iteration is still scored and alerted from what WAS collected — closing it unscored would be a real cluster reading as silence.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/iterations/3/abandon",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "reason": "operator closed it after a crash",
+      "confirm": true
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "iteration_id": 3,
+      "outcome": "PARTIAL",
+      "queries_marked_interrupted": 2,
+      "coverage_gaps": {
+        "CAR": 1,
+        "FLIGHT_LIVE": 1
+      },
+      "correlations_written": 1,
+      "alerts_written": 0,
+      "scheduling_skipped": true
+    }
+  }
+}

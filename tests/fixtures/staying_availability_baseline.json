@@ -1,0 +1,8 @@
+{"data": [
+ {"platform":"booking","listingId":"bk-88001","dates":[
+   {"date":"2026-08-04","available":true,"minNights":1,"checkIn":true,"bookable":true},
+   {"date":"2026-08-05","available":true,"minNights":1,"checkIn":true,"bookable":true}]},
+ {"platform":"booking","listingId":"bk-88002","dates":[
+   {"date":"2026-08-04","available":true,"minNights":1,"checkIn":true,"bookable":true},
+   {"date":"2026-08-05","available":true,"minNights":1,"checkIn":true,"bookable":true}]}
+]}

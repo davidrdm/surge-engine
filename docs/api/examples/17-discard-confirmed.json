@@ -1,0 +1,35 @@
+{
+  "name": "17-discard-confirmed",
+  "note": "The same call, acknowledged. `queries_reset` are back to PENDING and will be collected again; `units_spent` is not reclaimed.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/iterations/2/discard-last-stage",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "confirm": true
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "iteration_id": 2,
+      "stage": "COLLECTING_TIPPED",
+      "deleted": {
+        "raw_results": 3,
+        "signals": 10,
+        "queue_decisions": 1
+      },
+      "queries_reset": 4,
+      "units_spent": {
+        "APIDIRECT": 0.0,
+        "FR24": 0.0,
+        "PRICELINE": 0.0
+      },
+      "not_reverted": [],
+      "degradations_retracted": 0,
+      "next_stage": "COLLECTING_TIPPED"
+    }
+  }
+}

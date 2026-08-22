@@ -1,0 +1,1484 @@
+{
+  "name": "13-stages",
+  "note": "All eight, including SCHEDULING which has not run.",
+  "request": {
+    "method": "GET",
+    "path": "/v1/iterations/2/stages",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "iteration_id": 2,
+      "stage": "SCHEDULING",
+      "outcome": null,
+      "next_stage": "SCHEDULING",
+      "stages": [
+        {
+          "stage": "SEEDING",
+          "status": "COMPLETE",
+          "started_at": "2026-07-27T16:00:00+00:00",
+          "finished_at": "2026-07-27T16:00:00+00:00",
+          "error_message": null,
+          "wrote": {
+            "query_queue": 18,
+            "queue_decisions": 18
+          },
+          "decisions": {
+            "ENQUEUED": 18
+          },
+          "agents": [],
+          "api_calls": {
+            "APIDIRECT": {
+              "calls": 18.0,
+              "units": 0.0,
+              "records": 36.0
+            },
+            "FR24": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 6.0
+            },
+            "PRICELINE": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 2.0
+            }
+          },
+          "log": [
+            {
+              "agent": "IterationOrchestrator",
+              "level": "INFO",
+              "message": "Iteration 2 created",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Seeded 18 social queries, adopted 0 follow-ons",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over SOCIAL: 18 executed, 0 failed, 0 skipped, 0 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "Triaged 4 posts: 4 accepted, 0 rejected, 0 not judged; 4 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Tipped 1 city/cities from social signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "WARNING",
+              "message": "LODGING query 42 yielded nothing usable: no airbnb listings for 'Riverside Fairground, Phoenix, AZ'",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_COUNT,FLIGHT_LIVE,LODGING,LODGING_PRICE,CAR: 2 executed, 0 failed, 1 skipped, 9 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Escalated after collection: FLIGHT_HISTORY=1",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Confirmed the category of 2 live flight record(s)",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_HISTORY,LODGING,LODGING_PRICE,CAR: 1 executed, 0 failed, 0 skipped, 1 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "Correlated 2 city/track pair(s): 2 alertable, 0 band-capped",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "Alerting: 2 written from 2 correlation(s); 0 below the floor, 0 used the deterministic fallback",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            }
+          ],
+          "correlations": [],
+          "skips": {}
+        },
+        {
+          "stage": "COLLECTING_SOCIAL",
+          "status": "COMPLETE",
+          "started_at": "2026-07-27T16:00:00+00:00",
+          "finished_at": "2026-07-27T16:00:00+00:00",
+          "error_message": null,
+          "wrote": {
+            "raw_results": 18
+          },
+          "decisions": {},
+          "agents": [
+            {
+              "agent": "CollectionAgent",
+              "status": "COMPLETE",
+              "started_at": "2026-07-27T16:00:00+00:00",
+              "finished_at": "2026-07-27T16:00:00+00:00",
+              "error_message": null
+            }
+          ],
+          "api_calls": {
+            "APIDIRECT": {
+              "calls": 18.0,
+              "units": 0.0,
+              "records": 36.0
+            },
+            "FR24": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 6.0
+            },
+            "PRICELINE": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 2.0
+            }
+          },
+          "log": [
+            {
+              "agent": "IterationOrchestrator",
+              "level": "INFO",
+              "message": "Iteration 2 created",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Seeded 18 social queries, adopted 0 follow-ons",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over SOCIAL: 18 executed, 0 failed, 0 skipped, 0 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "Triaged 4 posts: 4 accepted, 0 rejected, 0 not judged; 4 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Tipped 1 city/cities from social signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "WARNING",
+              "message": "LODGING query 42 yielded nothing usable: no airbnb listings for 'Riverside Fairground, Phoenix, AZ'",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_COUNT,FLIGHT_LIVE,LODGING,LODGING_PRICE,CAR: 2 executed, 0 failed, 1 skipped, 9 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Escalated after collection: FLIGHT_HISTORY=1",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Confirmed the category of 2 live flight record(s)",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_HISTORY,LODGING,LODGING_PRICE,CAR: 1 executed, 0 failed, 0 skipped, 1 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "Correlated 2 city/track pair(s): 2 alertable, 0 band-capped",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "Alerting: 2 written from 2 correlation(s); 0 below the floor, 0 used the deterministic fallback",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            }
+          ],
+          "correlations": [],
+          "skips": {}
+        },
+        {
+          "stage": "TRIAGING",
+          "status": "COMPLETE",
+          "started_at": "2026-07-27T16:00:00+00:00",
+          "finished_at": "2026-07-27T16:00:00+00:00",
+          "error_message": null,
+          "wrote": {
+            "triage_decisions": 4,
+            "signals": 4,
+            "queue_decisions": 0
+          },
+          "decisions": {},
+          "agents": [
+            {
+              "agent": "TriageAgent",
+              "status": "COMPLETE",
+              "started_at": "2026-07-27T16:00:00+00:00",
+              "finished_at": "2026-07-27T16:00:00+00:00",
+              "error_message": null
+            }
+          ],
+          "api_calls": {
+            "APIDIRECT": {
+              "calls": 18.0,
+              "units": 0.0,
+              "records": 36.0
+            },
+            "FR24": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 6.0
+            },
+            "PRICELINE": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 2.0
+            }
+          },
+          "log": [
+            {
+              "agent": "IterationOrchestrator",
+              "level": "INFO",
+              "message": "Iteration 2 created",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Seeded 18 social queries, adopted 0 follow-ons",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over SOCIAL: 18 executed, 0 failed, 0 skipped, 0 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "Triaged 4 posts: 4 accepted, 0 rejected, 0 not judged; 4 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Tipped 1 city/cities from social signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "WARNING",
+              "message": "LODGING query 42 yielded nothing usable: no airbnb listings for 'Riverside Fairground, Phoenix, AZ'",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_COUNT,FLIGHT_LIVE,LODGING,LODGING_PRICE,CAR: 2 executed, 0 failed, 1 skipped, 9 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Escalated after collection: FLIGHT_HISTORY=1",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Confirmed the category of 2 live flight record(s)",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_HISTORY,LODGING,LODGING_PRICE,CAR: 1 executed, 0 failed, 0 skipped, 1 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "Correlated 2 city/track pair(s): 2 alertable, 0 band-capped",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "Alerting: 2 written from 2 correlation(s); 0 below the floor, 0 used the deterministic fallback",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            }
+          ],
+          "correlations": [],
+          "skips": {}
+        },
+        {
+          "stage": "TIPPING",
+          "status": "COMPLETE",
+          "started_at": "2026-07-27T16:00:00+00:00",
+          "finished_at": "2026-07-27T16:00:00+00:00",
+          "error_message": null,
+          "wrote": {
+            "query_queue": 4,
+            "queue_decisions": 3
+          },
+          "decisions": {
+            "ENQUEUED": 3
+          },
+          "agents": [],
+          "api_calls": {
+            "APIDIRECT": {
+              "calls": 18.0,
+              "units": 0.0,
+              "records": 36.0
+            },
+            "FR24": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 6.0
+            },
+            "PRICELINE": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 2.0
+            }
+          },
+          "log": [
+            {
+              "agent": "IterationOrchestrator",
+              "level": "INFO",
+              "message": "Iteration 2 created",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Seeded 18 social queries, adopted 0 follow-ons",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over SOCIAL: 18 executed, 0 failed, 0 skipped, 0 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "Triaged 4 posts: 4 accepted, 0 rejected, 0 not judged; 4 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Tipped 1 city/cities from social signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "WARNING",
+              "message": "LODGING query 42 yielded nothing usable: no airbnb listings for 'Riverside Fairground, Phoenix, AZ'",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_COUNT,FLIGHT_LIVE,LODGING,LODGING_PRICE,CAR: 2 executed, 0 failed, 1 skipped, 9 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Escalated after collection: FLIGHT_HISTORY=1",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Confirmed the category of 2 live flight record(s)",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_HISTORY,LODGING,LODGING_PRICE,CAR: 1 executed, 0 failed, 0 skipped, 1 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "Correlated 2 city/track pair(s): 2 alertable, 0 band-capped",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "Alerting: 2 written from 2 correlation(s); 0 below the floor, 0 used the deterministic fallback",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            }
+          ],
+          "correlations": [],
+          "skips": {}
+        },
+        {
+          "stage": "COLLECTING_TIPPED",
+          "status": "COMPLETE",
+          "started_at": "2026-07-27T16:00:00+00:00",
+          "finished_at": "2026-07-27T16:00:00+00:00",
+          "error_message": null,
+          "wrote": {
+            "raw_results": 3,
+            "signals": 10,
+            "queue_decisions": 1
+          },
+          "decisions": {
+            "ENQUEUED": 1
+          },
+          "agents": [
+            {
+              "agent": "CollectionAgent",
+              "status": "COMPLETE",
+              "started_at": "2026-07-27T16:00:00+00:00",
+              "finished_at": "2026-07-27T16:00:00+00:00",
+              "error_message": null
+            }
+          ],
+          "api_calls": {
+            "APIDIRECT": {
+              "calls": 18.0,
+              "units": 0.0,
+              "records": 36.0
+            },
+            "FR24": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 6.0
+            },
+            "PRICELINE": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 2.0
+            }
+          },
+          "log": [
+            {
+              "agent": "IterationOrchestrator",
+              "level": "INFO",
+              "message": "Iteration 2 created",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Seeded 18 social queries, adopted 0 follow-ons",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over SOCIAL: 18 executed, 0 failed, 0 skipped, 0 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "Triaged 4 posts: 4 accepted, 0 rejected, 0 not judged; 4 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Tipped 1 city/cities from social signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "WARNING",
+              "message": "LODGING query 42 yielded nothing usable: no airbnb listings for 'Riverside Fairground, Phoenix, AZ'",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_COUNT,FLIGHT_LIVE,LODGING,LODGING_PRICE,CAR: 2 executed, 0 failed, 1 skipped, 9 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Escalated after collection: FLIGHT_HISTORY=1",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Confirmed the category of 2 live flight record(s)",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_HISTORY,LODGING,LODGING_PRICE,CAR: 1 executed, 0 failed, 0 skipped, 1 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "Correlated 2 city/track pair(s): 2 alertable, 0 band-capped",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "Alerting: 2 written from 2 correlation(s); 0 below the floor, 0 used the deterministic fallback",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            }
+          ],
+          "correlations": [],
+          "skips": {}
+        },
+        {
+          "stage": "CORRELATING",
+          "status": "COMPLETE",
+          "started_at": "2026-07-27T16:00:00+00:00",
+          "finished_at": "2026-07-27T16:00:00+00:00",
+          "error_message": null,
+          "wrote": {
+            "correlation_signals": 22,
+            "correlations": 2
+          },
+          "decisions": {},
+          "agents": [
+            {
+              "agent": "CorrelationAgent",
+              "status": "COMPLETE",
+              "started_at": "2026-07-27T16:00:00+00:00",
+              "finished_at": "2026-07-27T16:00:00+00:00",
+              "error_message": null
+            }
+          ],
+          "api_calls": {
+            "APIDIRECT": {
+              "calls": 18.0,
+              "units": 0.0,
+              "records": 36.0
+            },
+            "FR24": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 6.0
+            },
+            "PRICELINE": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 2.0
+            }
+          },
+          "log": [
+            {
+              "agent": "IterationOrchestrator",
+              "level": "INFO",
+              "message": "Iteration 2 created",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Seeded 18 social queries, adopted 0 follow-ons",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over SOCIAL: 18 executed, 0 failed, 0 skipped, 0 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "Triaged 4 posts: 4 accepted, 0 rejected, 0 not judged; 4 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Tipped 1 city/cities from social signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "WARNING",
+              "message": "LODGING query 42 yielded nothing usable: no airbnb listings for 'Riverside Fairground, Phoenix, AZ'",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_COUNT,FLIGHT_LIVE,LODGING,LODGING_PRICE,CAR: 2 executed, 0 failed, 1 skipped, 9 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Escalated after collection: FLIGHT_HISTORY=1",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Confirmed the category of 2 live flight record(s)",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_HISTORY,LODGING,LODGING_PRICE,CAR: 1 executed, 0 failed, 0 skipped, 1 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "Correlated 2 city/track pair(s): 2 alertable, 0 band-capped",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "Alerting: 2 written from 2 correlation(s); 0 below the floor, 0 used the deterministic fallback",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            }
+          ],
+          "correlations": [
+            {
+              "correlation_id": 3,
+              "city": "Phoenix",
+              "track": "AIRSHOW",
+              "score": 0.5668,
+              "band": "MEDIUM",
+              "distinct_types": 2,
+              "data_completeness": 0.75,
+              "band_capped": false,
+              "rule_trace": "score 0.57 >= 0.5, 2 families, with social or verified-category flight; flight_AMBIGUOUS NOT baselined — too few prior samples, so the absolute count of 2 stands; flight_J NOT baselined — too few prior samples, so the absolute count of 1 stands; evidence aged on a 72-hour window (half-life 21.7h, 0.1 at the edge)",
+              "alert_decision": "ALERTED",
+              "alert_decision_reason": "score 0.567 at or above correlation.alert_min_score (0.2) with band MEDIUM — score 0.57 >= 0.5, 2 families, with social or verified-category flight; flight_AMBIGUOUS NOT baselined — too few prior samples, so the absolute count of 2 stands; flight_J NOT baselined — too few prior samples, so the absolute count of 1 stands; evidence aged on a 72-hour window (half-life 21.7h, 0.1 at the edge)",
+              "evidence_url": "/v1/correlations/3/evidence"
+            },
+            {
+              "correlation_id": 4,
+              "city": "Phoenix",
+              "track": "CONCERT_TOUR",
+              "score": 0.2505,
+              "band": "LOW",
+              "distinct_types": 1,
+              "data_completeness": 0.75,
+              "band_capped": false,
+              "rule_trace": "score 0.25 >= 0.2, 3 independent reports across 1 signal family; flight_AMBIGUOUS NOT baselined — too few prior samples, so the absolute count of 2 stands; flight_J NOT baselined — too few prior samples, so the absolute count of 1 stands; evidence aged on a 72-hour window (half-life 21.7h, 0.1 at the edge)",
+              "alert_decision": "ALERTED",
+              "alert_decision_reason": "score 0.251 at or above correlation.alert_min_score (0.2) with band LOW — score 0.25 >= 0.2, 3 independent reports across 1 signal family; flight_AMBIGUOUS NOT baselined — too few prior samples, so the absolute count of 2 stands; flight_J NOT baselined — too few prior samples, so the absolute count of 1 stands; evidence aged on a 72-hour window (half-life 21.7h, 0.1 at the edge)",
+              "evidence_url": "/v1/correlations/4/evidence"
+            }
+          ],
+          "skips": {}
+        },
+        {
+          "stage": "ALERTING",
+          "status": "COMPLETE",
+          "started_at": "2026-07-27T16:00:00+00:00",
+          "finished_at": "2026-07-27T16:00:00+00:00",
+          "error_message": null,
+          "wrote": {
+            "alerts": 2
+          },
+          "decisions": {},
+          "agents": [
+            {
+              "agent": "AlertAgent",
+              "status": "COMPLETE",
+              "started_at": "2026-07-27T16:00:00+00:00",
+              "finished_at": "2026-07-27T16:00:00+00:00",
+              "error_message": null
+            }
+          ],
+          "api_calls": {
+            "APIDIRECT": {
+              "calls": 18.0,
+              "units": 0.0,
+              "records": 36.0
+            },
+            "FR24": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 6.0
+            },
+            "PRICELINE": {
+              "calls": 2.0,
+              "units": 0.0,
+              "records": 2.0
+            }
+          },
+          "log": [
+            {
+              "agent": "IterationOrchestrator",
+              "level": "INFO",
+              "message": "Iteration 2 created",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Seeded 18 social queries, adopted 0 follow-ons",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over SOCIAL: 18 executed, 0 failed, 0 skipped, 0 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "Triaged 4 posts: 4 accepted, 0 rejected, 0 not judged; 4 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "TriageAgent",
+              "level": "INFO",
+              "message": "TriageAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Tipped 1 city/cities from social signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "WARNING",
+              "message": "LODGING query 42 yielded nothing usable: no airbnb listings for 'Riverside Fairground, Phoenix, AZ'",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_COUNT,FLIGHT_LIVE,LODGING,LODGING_PRICE,CAR: 2 executed, 0 failed, 1 skipped, 9 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "QueueAgent",
+              "level": "INFO",
+              "message": "Escalated after collection: FLIGHT_HISTORY=1",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Confirmed the category of 2 live flight record(s)",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "Collection pass over FLIGHT_HISTORY,LODGING,LODGING_PRICE,CAR: 1 executed, 0 failed, 0 skipped, 1 signals",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CollectionAgent",
+              "level": "INFO",
+              "message": "CollectionAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "Correlated 2 city/track pair(s): 2 alertable, 0 band-capped",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "CorrelationAgent",
+              "level": "INFO",
+              "message": "CorrelationAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent starting",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "LLM call complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "Alerting: 2 written from 2 correlation(s); 0 below the floor, 0 used the deterministic fallback",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            },
+            {
+              "agent": "AlertAgent",
+              "level": "INFO",
+              "message": "AlertAgent complete",
+              "logged_at": "2026-07-27T16:00:00+00:00"
+            }
+          ],
+          "correlations": [],
+          "skips": {}
+        },
+        {
+          "stage": "SCHEDULING",
+          "status": "PENDING",
+          "started_at": null,
+          "finished_at": null,
+          "error_message": null,
+          "wrote": {},
+          "decisions": {},
+          "agents": [],
+          "api_calls": {},
+          "log": [],
+          "correlations": [],
+          "skips": {}
+        }
+      ]
+    }
+  }
+}

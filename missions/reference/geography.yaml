@@ -1,0 +1,17 @@
+# Geography this mission treats as one operational unit, and the publishers it
+# recognises.
+#
+# The engine resolves place names generically — airports, aliases, prefixes.
+# What it cannot know is which two names describe ONE thing for the purposes of
+# a particular mission. That judgement is here.
+
+# canonical key -> the key that names the single unit both belong to.
+# A pair here means the engine refuses to admit both as separate places, and
+# treats evidence collected under either as evidence about the same unit.
+equivalents: {}
+
+# Publisher domain -> the name to display. The engine already knows the wire
+# services and the national outlets; this is for the regional press a
+# particular mission depends on, where a domain that looks like a blog is in
+# fact the paper of record for the jurisdiction.
+publishers: {}

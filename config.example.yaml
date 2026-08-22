@@ -1,0 +1,265 @@
+# Surge I&W — configuration
+#
+# Copy to config.yaml and edit. config.yaml is gitignored; this example file is
+# the one that is committed.
+#
+# CRITICAL: every *_env / *_key_env field holds the NAME of an environment
+# variable, never the value. Write FR24_API_KEY, not the key itself.
+#
+# The sibling nsicwg/iw repo has live API keys pasted into these fields and
+# committed to git. Because the loader looks up an environment variable *named*
+# after the key, those keys leaked without ever working. config.require_api_key()
+# now rejects anything that does not look like an environment variable name, so
+# the same mistake fails at startup rather than silently at request time.
+#
+# Only override what you need — surge_iw/config.py holds the full defaults.
+
+database:
+  # File-backed: iterations are separate API calls, and follow-on queries
+  # scheduled by one iteration must survive until the next. Use ":memory:" only
+  # for tests. Because data lands on disk, services/retention.py enforces
+  # FlightRadar24's 30-day deletion requirement.
+  path: "surge_iw_reference.db"
+
+llm:
+  # Any OpenAI-compatible endpoint. Production is expected to point at a
+  # self-hosted open-weight model by changing base_url alone.
+  model: "gemini-3.6-flash"
+  base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+  api_key_env: "GEMINI_API_KEY"
+  # A reasoning model spends this on reasoning before writing the answer, so it
+  # has to cover both. Measured: at 4096 a 20-item triage batch overran it
+  # about a third of the time and was re-sent at half the size.
+  max_tokens: 8192
+  temperature: 0.2
+  # Claude Sonnet 5 alternative:
+  # model: "claude-sonnet-5"
+  # base_url: "https://api.anthropic.com/v1/"
+  # api_key_env: "ANTHROPIC_API_KEY"
+
+api:
+  # Localhost only by default. Alerts name specific facilities; binding to
+  # 0.0.0.0 needs TLS and a real identity layer in front of it.
+  host: "127.0.0.1"
+  port: 8000
+  token_env: "SURGE_API_TOKEN"
+  # How long ?wait=true blocks before falling back to the poll URL. The run is
+  # never cancelled — an iteration that has paid for collection finishes.
+  sync_timeout_s: 600
+  # Retry-After, in seconds, on a 409 from a busy session. An iteration runs for
+  # minutes, so a client told only "409" either gives up or hammers.
+  busy_retry_after_s: 60
+  # How long POST /iterations replays an Idempotency-Key's response.
+  idempotency_ttl_hours: 24.0
+  # Whether GET /v1/alerts/{id}/evidence may return raw vendor payloads and
+  # query parameters. Off: the evidence surface is the normalised record, and a
+  # provider payload carries fields whose downstream rights are 8.3's question,
+  # not this endpoint's assumption.
+  expose_raw_payloads: false
+  # Concurrent iterations across DIFFERENT sessions. One session is limited to
+  # one iteration at a time by a lock regardless of this. That lock is per
+  # process, which is why `run.py serve` pins uvicorn to a single worker.
+  max_workers: 4
+  # uvicorn processes. The one-iteration-per-session lock lives in the database
+  # (8.6), so >1 is safe for correctness — but sibling workers block each
+  # other's startup crash recovery, so raise this deliberately.
+  uvicorn_workers: 1
+  # How long shutdown waits for an in-flight iteration before giving up on it.
+  # Not politeness: closing the database under a running worker crashes the
+  # process, and a half-finished iteration has already spent real credits.
+  shutdown_timeout_s: 30
+  # Mounts the stage-debugging routes:
+  #   POST /v1/iterations/{id}/step                 run exactly one stage
+  #   GET  /v1/iterations/{id}/stages[/{stage}]     verify what a stage did
+  #   POST /v1/iterations/{id}/discard-last-stage   discard it and re-run
+  # On for a proof of concept, which is developed by stepping. Set false for a
+  # deployment serving an operations team: the discard endpoint deletes
+  # analytical
+  # records, and when this is false the routes are not mounted at all rather
+  # than merely refusing.
+  debug_endpoints: true
+
+apidirect:
+  api_key_env: "APIDIRECT_API_KEY"
+  platforms: ["twitter", "reddit", "news"]
+  # Parameter names differ per endpoint: twitter takes `pages` and has no time
+  # filter, news takes `limit` and `time_published`.
+  twitter_pages: 2
+  news_limit: 50
+  # 7d, not 1d: measured live, 1d returned ZERO articles for this lexicon while
+  # twitter and reddit returned 240 posts.
+  news_time_published: "7d"
+  # +$0.001/page for an eight-emotion vector that is not an I&W indicator.
+  get_sentiment: false
+
+flightradar:
+  api_key_env: "FR24_API_KEY"
+  # Sandbox uses the same URLs and paths, distinguished only by the key. It
+  # returns static responses, ignores query parameters, and costs no credits.
+  sandbox: false
+  max_airports_per_city: 3
+  history_hours: 48
+  # FR24 bills per RECORD RETURNED, so `limit` is the only cost control on the
+  # flight-positions endpoints. Measured at 8 credits/record.
+  live_limit: 20
+  # The /count endpoints WOULD have been the cheap tripwire, but both return
+  # 403 "not permitted" on the Explorer tier. Left configurable for a higher
+  # plan; the collection order does not depend on it.
+  use_count_tripwire: false
+  flight_count_threshold: 1
+  # Contractual limit, not a preference. Values above 30 are clamped.
+  retention_days: 30
+  # Explorer tier. Measured live: 10 requests/minute, and a burst ceiling of
+  # exactly ONE — two calls 0.2s apart returned 429. burst forces even pacing.
+  queries_per_minute: 10
+  burst: 1
+
+staying:
+  api_key_env: "STAYING_API_KEY"
+  # The /v1 is NOT optional — the published OpenAPI paths are relative to it and
+  # the bare host 404s on everything. Verified live.
+  base_url: "https://api.stayingapi.com/v1"
+  # An OTA aggregator (Airbnb, Booking.com, Vrbo, Google Hotels), not a hotel
+  # inventory API. Availability comes from /availability's per-date booleans over
+  # a listing set fixed by /search, which is a real availability ratio rather
+  # than a proxy for one.
+  #
+  # airbnb ONLY, and this is measured rather than preferred:
+  #   airbnb   `available` varies correctly across windows — the signal works
+  #   vrbo     every flag False on every date, even 30 days out
+  #   booking  the availability job ends in state 'failed'
+  # A platform that always reports False would dilute a real drop toward zero.
+  platforms: ["airbnb"]
+  # Coverage is sparse — roughly 1 in 15 airbnb listings returns calendar data —
+  # so the set has to be wide. 40 is the documented maximum for /search.
+  listing_set_size: 40
+  listing_set_ttl_days: 14
+  # A drop computed from one or two listings is arithmetic, not evidence.
+  min_paired_listings: 3
+  # /search is asynchronous and slow: one city measured at 125 seconds against a
+  # self-reported estimate of 45.
+  job_poll_max_s: 420
+  # Lodging PRICE sub-signal via /price-compare.
+  #
+  # Now DIRECT mode over the same pinned listing set the availability path
+  # uses, so the two lodging sub-signals measure the same properties. Google
+  # mode was measured and abandoned: it resolved one location string to a
+  # different property in each window and never returned the id the pinning
+  # needed. Verified live: 4 of 6 listings priced in each window and all 4
+  # paired, for 6 credits a location.
+  #
+  # Still OFF by default because enabling it is a spend decision, not a
+  # correctness one.
+  enable_price_compare: false
+  # 2-6 ids per call; 3 credits per CALL whether it carries 2 or 6.
+  price_batch_size: 6
+  # How much of the pinned set to price. Cost is linear in this.
+  price_max_listings: 6
+  # Shift BOTH windows forward by this much. No listing could be quoted for a
+  # check-in today or tomorrow; +2 priced normally. Shifting both equally keeps
+  # the weekday alignment baseline_days exists for.
+  price_lead_days: 2
+
+priceline:
+  api_key_env: "PRICELINE_RAPIDAPI_KEY"
+  host: "priceline-com2.p.rapidapi.com"
+  pickup_time: "12:00"
+  dropoff_time: "12:00"
+  rental_days: 2
+  # ULTRA tier is 5/sec; PRO is 3 and MEGA is 10. All tiers are hard-capped with
+  # zero overage, so exhaustion cuts you off rather than billing you.
+  requests_per_second: 5
+
+# ---------------------------------------------------------------------------
+# triage · windows · sensitivity · correlation
+#
+# DELIBERATELY ABSENT from this file.
+#
+# These four sections belong to the MISSION, which sets them in its
+# `thresholds:` block. Restating them here would override your mission's
+# calibrated values on every key — which is legitimate but almost never what
+# you want, and the engine would log an override warning for each one at
+# startup.
+#
+# Set one here only when you mean to override the mission deliberately, and
+# only the keys you mean to change. `docs/config.md` documents every key;
+# `docs/missions.md` explains the layering.
+# ---------------------------------------------------------------------------
+
+tipping:
+  # Seeding alone is 24 queries per city, so seven cities is 168 before any
+  # tipping. Sized so the BUDGET bounds a run rather than this counter.
+  max_queries_per_iteration: 500
+  # 2 tracks x 4 lexicon groups x 3 platforms = 24 social queries per city,
+  # plus ~6 tipped. At 12 this bound during NORMAL seeding and silently refused
+  # an entire actor track — measured in the first live iteration.
+  max_queries_per_city: 36
+  # social -> flight count -> flight full -> lodging. Nothing chains further.
+  max_tip_depth: 3
+  cooldown_minutes: 180
+  max_locations_per_city: 4
+  # City expansion gate, used only when a session sets expand_cities: true.
+  # Corroboration from two independent domains stops one viral post from
+  # steering collection.
+  min_independent_domains: 2
+  min_expansion_salience: 0.6
+  max_expanded_cities: 5
+
+budget:
+  # The month's allowance is divided into this many per-iteration fair shares,
+  # and the lower of that and per_iteration_cap applies. Watch it on large
+  # sessions: at 60, seven metros got a fair share of 73 against 168 planned
+  # queries and four cities collected almost nothing — chosen by queue order.
+  iterations_per_month_planned: 60
+  hard_stop_pct: 0.9
+  # Past the hard stop, only queries at or below this priority may spend,
+  # reserving the tail for imminent tips over routine refreshes.
+  reserved_priority_ceiling: 20
+  per_iteration_cap:
+    APIDIRECT: 60.0
+    FR24: 4000.0        # credits, not requests
+    STAYING: 400.0
+    PRICELINE: 200.0
+  monthly_limit:
+    APIDIRECT: 3000.0
+    # Explorer allowance. BudgetGuard.reconcile_staying() overwrites the Staying
+    # figure from the free GET /account, which is authoritative.
+    FR24: 30000.0
+    STAYING: 20000.0
+    PRICELINE: 100000.0
+
+inputs:
+  # Where POST /v1/sessions looks for a named input_set. The API takes a NAME
+  # resolved inside this directory, never a path — a path field there would be
+  # a file-disclosure primitive. `run.py session create --from` accepts either.
+  #
+  # A mission pack may carry its own geography in <pack>/inputs/; point this
+  # there to use it, e.g. "./missions/reference/inputs".
+  dir: "./inputs"
+
+mission:
+  # Which mission definition this deployment runs, and where the packs live.
+  #
+  # The engine collects and correlates; the mission says what it is LOOKING
+  # FOR — the tracks, the search lexicon, the system prompts, the scoring
+  # weights, and the analytic thresholds. The pack is read once at startup and
+  # hashed into every receipt, so a judgement names the exact bytes behind it.
+  #
+  # `name` is a bare directory name resolved inside `dir`, never a path, for
+  # the same reason `inputs` works that way.
+  #
+  # The shipped `reference` pack is SYNTHETIC and UNCALIBRATED. It exists so
+  # the engine can be tested and its contract generated with no real mission
+  # present. Point this at your own pack before drawing any operational
+  # conclusion from a run.
+  dir: "./missions"
+  name: "reference"
+
+alerting:
+  # Output ceiling for the alert-summary call. Separate from llm.max_tokens:
+  # on a model that reasons before answering, this must cover the REASONING,
+  # not the ~40-word answer. At the previous hardcoded 400 every live alert
+  # overran it and fell back to a deterministic sentence.
+  max_tokens: 4096
+
+dry_run: false

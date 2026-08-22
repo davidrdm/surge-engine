@@ -1,0 +1,65 @@
+{
+  "name": "05-poll-iteration",
+  "note": "The poll target. `degradations` is what the run could not do; an empty list and a missing field differ.",
+  "request": {
+    "method": "GET",
+    "path": "/v1/iterations/1",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "iteration_id": 1,
+      "session_id": 1,
+      "seq": 1,
+      "stage": "COMPLETE",
+      "outcome": "PARTIAL",
+      "running": false,
+      "anchor_at": "2026-07-27T12:00:00+00:00",
+      "started_at": "2026-07-27T12:00:00+00:00",
+      "finished_at": "2026-07-27T12:00:00+00:00",
+      "next_stage": null,
+      "counts": {
+        "queries_enqueued": 22,
+        "queries_pending": 0,
+        "queries_executed": 21,
+        "queries_failed": 0,
+        "queries_skipped": 1,
+        "raw_results": 21,
+        "signals": 14,
+        "triage_decisions": 4,
+        "correlations": 2,
+        "alerts": 2
+      },
+      "triage_states": {
+        "ACCEPTED": 4
+      },
+      "budget": {
+        "APIDIRECT": {
+          "used_this_iteration": 0.0
+        },
+        "FR24": {
+          "used_this_iteration": 0.0
+        },
+        "PRICELINE": {
+          "used_this_iteration": 0.0
+        },
+        "STAYING": {
+          "used_this_iteration": 0.0
+        }
+      },
+      "status": "FINISHED",
+      "interrupted_at": null,
+      "interrupted_stage": null,
+      "retry_of_iteration_id": null,
+      "resumable": false,
+      "degradations": [
+        "collection gaps: SKIPPED_NO_MAPPING×1"
+      ],
+      "error_message": null
+    }
+  }
+}

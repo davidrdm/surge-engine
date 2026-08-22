@@ -1,0 +1,50 @@
+{
+  "name": "24-recovery-plan",
+  "note": "Read-only. `estimated_units_upper_bound` is a bound, not a price — FR24 bills per record returned, so judge from queries_to_recollect.",
+  "request": {
+    "method": "GET",
+    "path": "/v1/iterations/3/recovery-plan",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "iteration_id": 3,
+      "session_id": 4,
+      "resume_from": "COLLECTING_TIPPED",
+      "derived_by": "RECONCILED",
+      "stage_pointer": "COLLECTING_TIPPED",
+      "interrupted_stage": "COLLECTING_TIPPED",
+      "paid": true,
+      "queries_to_recollect": [
+        {
+          "query_id": 54,
+          "source_type": "FLIGHT_LIVE",
+          "endpoint": "/api/live/flight-positions/full",
+          "provider": "FR24",
+          "city_id": 6,
+          "status": "IN_PROGRESS",
+          "reason": "claimed but never recorded"
+        },
+        {
+          "query_id": 55,
+          "source_type": "CAR",
+          "endpoint": "/cars/search",
+          "provider": "PRICELINE",
+          "city_id": 6,
+          "status": "PENDING",
+          "reason": "never claimed"
+        }
+      ],
+      "already_banked": [],
+      "already_spent": {},
+      "estimated_units_upper_bound": {
+        "FR24": 160.0,
+        "PRICELINE": 1.0
+      }
+    }
+  }
+}

@@ -1,0 +1,688 @@
+{
+ "status": true,
+ "message": "Successful",
+ "meta": {
+  "currentPage": 1,
+  "limit": 4,
+  "totalRecords": 4,
+  "totalPage": 1
+ },
+ "data": {
+  "isExpressDealsAvailable": true,
+  "categoriesBySize": [
+   "mini002",
+   "economy004",
+   "compact006",
+   "midsize006",
+   "standard008",
+   "fullsize010"
+  ],
+  "vehicles": [
+   {
+    "deliveryType": "NOT_APPLICABLE",
+    "isPreRegistrationRequired": false,
+    "isPreRegistrationSupported": false,
+    "expressCounterIds": [],
+    "dealType": "retail",
+    "categoryIds": [
+     "premiumsuv022"
+    ],
+    "categoryCodes": [
+     "Premium SUV"
+    ],
+    "imageUrl": "https://s1.pclncdn.com/rc-static/v2/vehicles/partner/hz/24253/HZ_PFAR_US.jpg",
+    "code": "PFAR",
+    "name": "Premium SUV",
+    "id": "PFAR-R-HZ-PHX-HZ-PHX-CC",
+    "example": "Chevrolet Suburban",
+    "isCouponSupported": false,
+    "score": 266,
+    "groupId": 2,
+    "rate": [
+     {
+      "currencyCode": "USD",
+      "isCreditCardRequired": true,
+      "isFreeCancellation": false,
+      "isCancellationAllowed": true,
+      "isVip": false,
+      "ratePlan": "DAILY",
+      "savingsPercent": 0,
+      "savingsPriceTotal": 0,
+      "savingsPriceDaily": 0,
+      "totalPrice": 549,
+      "tags": [],
+      "strikeTotalPrice": 0,
+      "strikeDailyPrice": 0,
+      "detailsKey": "PHX~PHX~R~Y~~synthetic~~refCode-99-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee~",
+      "dailyPrice": 199,
+      "vehicleCode": "PFAR",
+      "isPrepay": false
+     }
+    ],
+    "pickupLocation": {
+     "locationId": "HZ-PHX",
+     "counterType": "ON_AIR_SHUTTLE",
+     "airportCode": "PHX",
+     "lng": -112.044979,
+     "line1": "1805 E Sky Harbor Circle South",
+     "lat": 33.430364,
+     "countryName": "United States",
+     "countryCode": "US",
+     "postalCode": "85034-4403",
+     "provinceCode": "AZ",
+     "city": "Phoenix",
+     "distanceFromSearchLocation": 2.4,
+     "counterDisplayName": "Airport Shuttle to Rental Car Center"
+    },
+    "partner": {
+     "nameShort": "Hertz",
+     "code": "HZ",
+     "name": "Hertz Corporation",
+     "url": "//s1.pclncdn.com/rc-static/v2/partner-logos/HZ/HZ.png?width=250&height=72&opto&fit=bounds",
+     "isPrimary": true
+    },
+    "vehicleFeatures": {
+     "bagCapacity": 6,
+     "fuelType": "Gasoline",
+     "inclusions": [],
+     "isAC": true,
+     "isLimitedForLocalRenter": false,
+     "isPayAtBooking": false,
+     "isUnlimitedMileage": true,
+     "mileage": "",
+     "numberOfDoors": "",
+     "peopleCapacity": 7,
+     "transmission": "auto"
+    },
+    "expressLogos": [],
+    "returnLocation": {
+     "airportCode": "PHX",
+     "city": "Phoenix",
+     "counterDisplayName": "Airport Shuttle to Rental Car Center",
+     "counterType": "ON_AIR_SHUTTLE",
+     "countryName": "United States",
+     "countryCode": "US",
+     "distanceFromSearchLocation": 2.4,
+     "lat": 33.430364,
+     "line1": "1805 E Sky Harbor Circle South",
+     "lng": -112.044979,
+     "locationId": "HZ-PHX",
+     "postalCode": "85034-4403",
+     "provinceCode": "AZ"
+    }
+   },
+   {
+    "deliveryType": "NOT_APPLICABLE",
+    "isPreRegistrationRequired": false,
+    "isPreRegistrationSupported": true,
+    "expressCounterIds": [],
+    "dealType": "retail",
+    "categoryIds": [
+     "standardsuv021",
+     "electric001"
+    ],
+    "categoryCodes": [
+     "Standard SUV",
+     "Electric Vehicle"
+    ],
+    "imageUrl": "https://s1.pclncdn.com/rc-static/v2/vehicles/partner/zt/24253/ZT_SGAC_US.jpg",
+    "code": "SGAC",
+    "name": "Standard Electric SUV",
+    "id": "SGAC-RP-ZT-PHX-ZT-PHX",
+    "example": "Chevrolet Equinox Ev",
+    "isCouponSupported": false,
+    "score": 174,
+    "groupId": 2,
+    "rate": [
+     {
+      "currencyCode": "USD",
+      "isCreditCardRequired": true,
+      "isFreeCancellation": false,
+      "isCancellationAllowed": true,
+      "isVip": false,
+      "ratePlan": "DAILY",
+      "savingsPercent": 35,
+      "savingsPriceTotal": 206.91,
+      "savingsPriceDaily": 103.46,
+      "totalPrice": 384,
+      "tags": [],
+      "strikeTotalPrice": 591.19,
+      "strikeDailyPrice": 215,
+      "detailsKey": "PHX~PHX~R~Y~~synthetic~~refCode-99-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee~",
+      "dailyPrice": 137,
+      "vehicleCode": "SGAC",
+      "isPrepay": true
+     }
+    ],
+    "pickupLocation": {
+     "locationId": "ZT-PHX",
+     "counterType": "ON_AIR_SHUTTLE",
+     "airportCode": "PHX",
+     "lng": -112.044979,
+     "line1": "1805 E Sky Harbor Circle South",
+     "lat": 33.430364,
+     "countryName": "United States",
+     "countryCode": "US",
+     "postalCode": "85034-4403",
+     "provinceCode": "AZ",
+     "city": "Phoenix",
+     "distanceFromSearchLocation": 2.4,
+     "counterDisplayName": "Airport Shuttle to Rental Car Center"
+    },
+    "partner": {
+     "nameShort": "Thrifty",
+     "code": "ZT",
+     "name": "Thrifty Car Rental",
+     "url": "//s1.pclncdn.com/rc-static/v2/partner-logos/ZT/ZT.png?width=250&height=72&opto&fit=bounds",
+     "isPrimary": true
+    },
+    "vehicleFeatures": {
+     "bagCapacity": 5,
+     "fuelType": "Electric",
+     "inclusions": [],
+     "isAC": false,
+     "isLimitedForLocalRenter": false,
+     "isPayAtBooking": true,
+     "isUnlimitedMileage": true,
+     "mileage": "",
+     "numberOfDoors": "",
+     "peopleCapacity": 5,
+     "transmission": "auto"
+    },
+    "expressLogos": [],
+    "returnLocation": {
+     "airportCode": "PHX",
+     "city": "Phoenix",
+     "counterDisplayName": "Airport Shuttle to Rental Car Center",
+     "counterType": "ON_AIR_SHUTTLE",
+     "countryName": "United States",
+     "countryCode": "US",
+     "distanceFromSearchLocation": 2.4,
+     "lat": 33.430364,
+     "line1": "1805 E Sky Harbor Circle South",
+     "lng": -112.044979,
+     "locationId": "ZT-PHX",
+     "postalCode": "85034-4403",
+     "provinceCode": "AZ"
+    }
+   },
+   {
+    "deliveryType": "NOT_APPLICABLE",
+    "isPreRegistrationRequired": false,
+    "isPreRegistrationSupported": true,
+    "expressCounterIds": [],
+    "dealType": "retail",
+    "categoryIds": [
+     "premiumsuv022"
+    ],
+    "categoryCodes": [
+     "Premium SUV"
+    ],
+    "imageUrl": "https://s1.pclncdn.com/rc-static/v2/vehicles/partner/zt/24253/ZT_PFAR_US.jpg",
+    "code": "PFAR",
+    "name": "Premium SUV",
+    "id": "PFAR-R-ZT-PHX-ZT-PHX",
+    "example": "Chevrolet Suburban",
+    "isCouponSupported": false,
+    "score": 274,
+    "groupId": 2,
+    "rate": [
+     {
+      "currencyCode": "USD",
+      "isCreditCardRequired": false,
+      "isFreeCancellation": true,
+      "isCancellationAllowed": true,
+      "isVip": false,
+      "ratePlan": "DAILY",
+      "savingsPercent": 0,
+      "savingsPriceTotal": 0,
+      "savingsPriceDaily": 0,
+      "totalPrice": 549,
+      "tags": [
+       "ZR_ZT_R"
+      ],
+      "strikeTotalPrice": 0,
+      "strikeDailyPrice": 0,
+      "detailsKey": "PHX~PHX~R~Y~~synthetic~~refCode-99-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee~",
+      "dailyPrice": 199,
+      "vehicleCode": "PFAR",
+      "isPrepay": false
+     }
+    ],
+    "pickupLocation": {
+     "locationId": "ZT-PHX",
+     "counterType": "ON_AIR_SHUTTLE",
+     "airportCode": "PHX",
+     "lng": -112.044979,
+     "line1": "1805 E Sky Harbor Circle South",
+     "lat": 33.430364,
+     "countryName": "United States",
+     "countryCode": "US",
+     "postalCode": "85034-4403",
+     "provinceCode": "AZ",
+     "city": "Phoenix",
+     "distanceFromSearchLocation": 2.4,
+     "counterDisplayName": "Airport Shuttle to Rental Car Center"
+    },
+    "partner": {
+     "nameShort": "Thrifty",
+     "code": "ZT",
+     "name": "Thrifty Car Rental",
+     "url": "//s1.pclncdn.com/rc-static/v2/partner-logos/ZT/ZT.png?width=250&height=72&opto&fit=bounds",
+     "isPrimary": true
+    },
+    "vehicleFeatures": {
+     "bagCapacity": 4,
+     "fuelType": "Gasoline",
+     "inclusions": [],
+     "isAC": true,
+     "isLimitedForLocalRenter": false,
+     "isPayAtBooking": false,
+     "isUnlimitedMileage": true,
+     "mileage": "",
+     "numberOfDoors": "",
+     "peopleCapacity": 7,
+     "transmission": "auto"
+    },
+    "expressLogos": [],
+    "returnLocation": {
+     "airportCode": "PHX",
+     "city": "Phoenix",
+     "counterDisplayName": "Airport Shuttle to Rental Car Center",
+     "counterType": "ON_AIR_SHUTTLE",
+     "countryName": "United States",
+     "countryCode": "US",
+     "distanceFromSearchLocation": 2.4,
+     "lat": 33.430364,
+     "line1": "1805 E Sky Harbor Circle South",
+     "lng": -112.044979,
+     "locationId": "ZT-PHX",
+     "postalCode": "85034-4403",
+     "provinceCode": "AZ"
+    }
+   },
+   {
+    "deliveryType": null,
+    "isPreRegistrationRequired": false,
+    "isPreRegistrationSupported": false,
+    "expressCounterIds": [
+     "AC-PHX",
+     "FX-PHX",
+     "EY-PHX",
+     "ZA-PHX",
+     "NU-PHX"
+    ],
+    "dealType": "express",
+    "categoryIds": [
+     "standardsuv021",
+     "elitesuv021"
+    ],
+    "categoryCodes": [
+     "Standard SUV",
+     "Standard Elite SUV"
+    ],
+    "imageUrl": "https://s1.pclncdn.com/rc-static/v2/opaque-fleet/RFAR_T1_T2_T3.jpg?width=268&height=144&opto",
+    "code": "RFDR",
+    "name": "Standard Elite SUV",
+    "id": "RFDR-O-PHX-PHX-T3",
+    "example": "Jeep Grand Cherokee",
+    "isCouponSupported": true,
+    "score": 4,
+    "groupId": 1,
+    "rate": [
+     {
+      "currencyCode": "USD",
+      "isCreditCardRequired": true,
+      "isFreeCancellation": false,
+      "isCancellationAllowed": false,
+      "isVip": false,
+      "ratePlan": "DAILY",
+      "savingsPercent": 70,
+      "savingsPriceTotal": 306.14,
+      "savingsPriceDaily": 153.07,
+      "totalPrice": 132,
+      "tags": [
+       "APP_EXCLUSIVE"
+      ],
+      "strikeTotalPrice": 438.62,
+      "strikeDailyPrice": 0,
+      "detailsKey": "PHX~PHX~R~Y~~synthetic~~refCode-99-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee~",
+      "dailyPrice": 33,
+      "vehicleCode": "RFDR",
+      "isPrepay": true
+     }
+    ],
+    "pickupLocation": {
+     "locationId": "PHX",
+     "counterType": "UNKNOWN",
+     "airportCode": "PHX",
+     "lng": -112.0037951445,
+     "line1": "",
+     "lat": 33.4354677969,
+     "countryName": "",
+     "countryCode": "",
+     "postalCode": "",
+     "provinceCode": "AZ",
+     "city": "",
+     "distanceFromSearchLocation": 0,
+     "counterDisplayName": "May Require Shuttle"
+    },
+    "partner": null,
+    "vehicleFeatures": {
+     "bagCapacity": 4,
+     "fuelType": "Gasoline",
+     "inclusions": [],
+     "isAC": true,
+     "isLimitedForLocalRenter": true,
+     "isPayAtBooking": true,
+     "isUnlimitedMileage": true,
+     "mileage": "",
+     "numberOfDoors": "",
+     "peopleCapacity": 5,
+     "transmission": "auto"
+    },
+    "expressLogos": [
+     {
+      "image88X44": "//s1.pclncdn.com/rc-static/v2/partner-logos/AC/AC_20240910100338.png?width=88&height=44&opto&fit=bounds",
+      "name": "ACE",
+      "partnerCode": "AC"
+     },
+     {
+      "image88X44": "//s1.pclncdn.com/rc-static/v2/partner-logos/FX/FX_20240910101806.png?width=88&height=44&opto&fit=bounds",
+      "name": "Fox",
+      "partnerCode": "FX"
+     },
+     {
+      "image88X44": "//s1.pclncdn.com/rc-static/v2/partner-logos/ZA/ZA.png?width=88&height=44&opto&fit=bounds",
+      "name": "Payless",
+      "partnerCode": "ZA"
+     },
+     {
+      "image88X44": "//s1.pclncdn.com/rc-static/v2/partner-logos/EY/EY.png?width=88&height=44&opto&fit=bounds",
+      "name": "Economy",
+      "partnerCode": "EY"
+     },
+     {
+      "image88X44": "//s1.pclncdn.com/rc-static/v2/partner-logos/NU/NU.png?width=88&height=44&opto&fit=bounds",
+      "name": "N\u00dc",
+      "partnerCode": "NU"
+     }
+    ],
+    "returnLocation": {
+     "airportCode": "PHX",
+     "city": "",
+     "counterDisplayName": "",
+     "counterType": "",
+     "countryName": "",
+     "countryCode": "",
+     "distanceFromSearchLocation": 0,
+     "lat": 33.4354677969,
+     "line1": "",
+     "lng": -112.0037951445,
+     "locationId": "PHX",
+     "postalCode": "",
+     "provinceCode": "AZ"
+    }
+   }
+  ],
+  "vehiclesFinal": [
+   {
+    "deliveryType": null,
+    "isPreRegistrationRequired": false,
+    "isPreRegistrationSupported": false,
+    "expressCounterIds": [
+     "AC-PHX",
+     "FX-PHX",
+     "EY-PHX",
+     "ZA-PHX",
+     "NU-PHX"
+    ],
+    "dealType": "express",
+    "categoryIds": [
+     "standardsuv021",
+     "elitesuv021"
+    ],
+    "categoryCodes": [
+     "Standard SUV",
+     "Standard Elite SUV"
+    ],
+    "imageUrl": "https://s1.pclncdn.com/rc-static/v2/opaque-fleet/RFAR_T1_T2_T3.jpg?width=268&height=144&opto",
+    "code": "RFDR",
+    "name": "Standard Elite SUV",
+    "id": "RFDR-O-PHX-PHX-T3",
+    "example": "Jeep Grand Cherokee",
+    "isCouponSupported": true,
+    "score": 4,
+    "groupId": 1,
+    "rate": [
+     {
+      "currencyCode": "USD",
+      "isCreditCardRequired": true,
+      "isFreeCancellation": false,
+      "isCancellationAllowed": false,
+      "isVip": false,
+      "ratePlan": "DAILY",
+      "savingsPercent": 70,
+      "savingsPriceTotal": 306.14,
+      "savingsPriceDaily": 153.07,
+      "totalPrice": 132,
+      "tags": [
+       "APP_EXCLUSIVE"
+      ],
+      "strikeTotalPrice": 438.62,
+      "strikeDailyPrice": 0,
+      "detailsKey": "***REDACTED***",
+      "dailyPrice": 33,
+      "vehicleCode": "RFDR",
+      "isPrepay": true
+     }
+    ],
+    "pickupLocation": {
+     "locationId": "PHX",
+     "counterType": "UNKNOWN",
+     "airportCode": "PHX",
+     "lng": -112.0037951445,
+     "line1": "",
+     "lat": 33.4354677969,
+     "countryName": "",
+     "countryCode": "",
+     "postalCode": "",
+     "provinceCode": "AZ",
+     "city": "",
+     "distanceFromSearchLocation": 0,
+     "counterDisplayName": "May Require Shuttle"
+    },
+    "partner": null,
+    "vehicleFeatures": {
+     "bagCapacity": 4,
+     "fuelType": "Gasoline",
+     "inclusions": [],
+     "isAC": true,
+     "isLimitedForLocalRenter": true,
+     "isPayAtBooking": true,
+     "isUnlimitedMileage": true,
+     "mileage": "",
+     "numberOfDoors": "",
+     "peopleCapacity": 5,
+     "transmission": "auto"
+    },
+    "expressLogos": [
+     {
+      "image88X44": "//s1.pclncdn.com/rc-static/v2/partner-logos/AC/AC_20240910100338.png?width=88&height=44&opto&fit=bounds",
+      "name": "ACE",
+      "partnerCode": "AC"
+     },
+     {
+      "image88X44": "//s1.pclncdn.com/rc-static/v2/partner-logos/FX/FX_20240910101806.png?width=88&height=44&opto&fit=bounds",
+      "name": "Fox",
+      "partnerCode": "FX"
+     },
+     {
+      "image88X44": "//s1.pclncdn.com/rc-static/v2/partner-logos/ZA/ZA.png?width=88&height=44&opto&fit=bounds",
+      "name": "Payless",
+      "partnerCode": "ZA"
+     },
+     {
+      "image88X44": "//s1.pclncdn.com/rc-static/v2/partner-logos/EY/EY.png?width=88&height=44&opto&fit=bounds",
+      "name": "Economy",
+      "partnerCode": "EY"
+     },
+     {
+      "image88X44": "//s1.pclncdn.com/rc-static/v2/partner-logos/NU/NU.png?width=88&height=44&opto&fit=bounds",
+      "name": "N\u00dc",
+      "partnerCode": "NU"
+     }
+    ],
+    "returnLocation": {
+     "airportCode": "PHX",
+     "city": "",
+     "counterDisplayName": "",
+     "counterType": "",
+     "countryName": "",
+     "countryCode": "",
+     "distanceFromSearchLocation": 0,
+     "lat": 33.4354677969,
+     "line1": "",
+     "lng": -112.0037951445,
+     "locationId": "PHX",
+     "postalCode": "",
+     "provinceCode": "AZ"
+    }
+   },
+   {
+    "deliveryType": "NOT_APPLICABLE",
+    "isPreRegistrationRequired": false,
+    "isPreRegistrationSupported": true,
+    "expressCounterIds": [],
+    "dealType": "retail",
+    "categoryIds": [
+     "standardsuv021",
+     "electric001"
+    ],
+    "categoryCodes": [
+     "Standard SUV",
+     "Electric Vehicle"
+    ],
+    "imageUrl": "https://s1.pclncdn.com/rc-static/v2/vehicles/partner/zt/24253/ZT_SGAC_US.jpg",
+    "code": "SGAC",
+    "name": "Standard Electric SUV",
+    "id": "SGAC-RP-ZT-PHX-ZT-PHX",
+    "example": "Chevrolet Equinox Ev",
+    "isCouponSupported": false,
+    "score": 174,
+    "groupId": 3,
+    "rate": [
+     {
+      "currencyCode": "USD",
+      "isCreditCardRequired": true,
+      "isFreeCancellation": false,
+      "isCancellationAllowed": true,
+      "isVip": false,
+      "ratePlan": "DAILY",
+      "savingsPercent": 35,
+      "savingsPriceTotal": 206.91,
+      "savingsPriceDaily": 103.46,
+      "totalPrice": 384,
+      "tags": [],
+      "strikeTotalPrice": 591.19,
+      "strikeDailyPrice": 215,
+      "detailsKey": "***REDACTED***",
+      "dailyPrice": 137,
+      "vehicleCode": "SGAC",
+      "isPrepay": true
+     },
+     {
+      "currencyCode": "USD",
+      "isCreditCardRequired": false,
+      "isFreeCancellation": true,
+      "isCancellationAllowed": true,
+      "isVip": false,
+      "ratePlan": "DAILY",
+      "savingsPercent": 0,
+      "savingsPriceTotal": 0,
+      "savingsPriceDaily": 0,
+      "totalPrice": 591,
+      "tags": [
+       "ZR_ZT_R"
+      ],
+      "strikeTotalPrice": 0,
+      "strikeDailyPrice": 0,
+      "detailsKey": "***REDACTED***",
+      "dailyPrice": 215,
+      "vehicleCode": "SGAC",
+      "isPrepay": false
+     }
+    ],
+    "pickupLocation": {
+     "locationId": "ZT-PHX",
+     "counterType": "ON_AIR_SHUTTLE",
+     "airportCode": "PHX",
+     "lng": -112.044979,
+     "line1": "1805 E Sky Harbor Circle South",
+     "lat": 33.430364,
+     "countryName": "United States",
+     "countryCode": "US",
+     "postalCode": "85034-4403",
+     "provinceCode": "AZ",
+     "city": "Phoenix",
+     "distanceFromSearchLocation": 2.4,
+     "counterDisplayName": "Airport Shuttle to Rental Car Center"
+    },
+    "partner": {
+     "nameShort": "Thrifty",
+     "code": "ZT",
+     "name": "Thrifty Car Rental",
+     "url": "//s1.pclncdn.com/rc-static/v2/partner-logos/ZT/ZT.png?width=250&height=72&opto&fit=bounds",
+     "isPrimary": true
+    },
+    "vehicleFeatures": {
+     "bagCapacity": 5,
+     "fuelType": "Electric",
+     "inclusions": [],
+     "isAC": false,
+     "isLimitedForLocalRenter": false,
+     "isPayAtBooking": true,
+     "isUnlimitedMileage": true,
+     "mileage": "",
+     "numberOfDoors": "",
+     "peopleCapacity": 5,
+     "transmission": "auto"
+    },
+    "expressLogos": [],
+    "returnLocation": {
+     "airportCode": "PHX",
+     "city": "Phoenix",
+     "counterDisplayName": "Airport Shuttle to Rental Car Center",
+     "counterType": "ON_AIR_SHUTTLE",
+     "countryName": "United States",
+     "countryCode": "US",
+     "distanceFromSearchLocation": 2.4,
+     "lat": 33.430364,
+     "line1": "1805 E Sky Harbor Circle South",
+     "lng": -112.044979,
+     "locationId": "ZT-PHX",
+     "postalCode": "85034-4403",
+     "provinceCode": "AZ"
+    }
+   }
+  ],
+  "airportCounterTypes": [
+   {
+    "displayName": "Shuttle to Car",
+    "id": "OFF_AIR_SHUTTLE"
+   },
+   {
+    "displayName": "Airport Shuttle to Rental Car Center",
+    "id": "ON_AIR_SHUTTLE"
+   },
+   {
+    "displayName": "Double Shuttle",
+    "id": "DOUBLE_SHUTTLE"
+   },
+   {
+    "displayName": "May Require Shuttle",
+    "id": "UNKNOWN"
+   }
+  ]
+ }
+}

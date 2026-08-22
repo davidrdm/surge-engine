@@ -1,0 +1,37 @@
+{
+  "name": "01e-tunable-refused",
+  "note": "Refused by name. Credentials, provider endpoints, retention ceilings and deployment controls are server-owned; so is an unknown field. A tunable that was accepted and then ignored is the defect this replaced — the client would have been told its request succeeded while collection ran on other settings.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "cities": [
+        {
+          "name": "Phoenix",
+          "state": "AZ",
+          "key_locations": [
+            {
+              "name": "Riverside Fairground",
+              "address": "510 S 3rd Ave, Phoenix, AZ",
+              "location_type": "FAIRGROUND"
+            }
+          ]
+        }
+      ],
+      "tunables": {
+        "staying": {
+          "retention_days": 3650
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "detail": "staying: not settable per session — provider endpoints, credentials, rate limits and retention ceilings are server-owned."
+    }
+  }
+}

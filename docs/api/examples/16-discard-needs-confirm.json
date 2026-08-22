@@ -1,0 +1,18 @@
+{
+  "name": "16-discard-needs-confirm",
+  "note": "Refused: discarding a collection stage means buying the same data again at the vendor, so it takes an explicit acknowledgement and reports what was already spent.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/iterations/2/discard-last-stage",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "detail": "Discarding COLLECTING_TIPPED means collecting again at the vendors. 0 unit(s) already spent here will not be reclaimed and re-running will spend more. Pass confirm=true to proceed."
+    }
+  }
+}

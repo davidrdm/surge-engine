@@ -1,0 +1,31 @@
+{
+  "name": "40-retry-triage",
+  "note": "A batch that overran `llm.max_tokens` recorded every post in it as MODEL_ERROR: the evidence was collected and paid for, only the judgement is missing. This re-judges exactly those posts in a NEW iteration that carries `retry_of_iteration_id`, inherits the parent's `anchor_at` so the correlation window does not slide off the evidence it exists to complete, and does not re-collect. The parent is never edited — both records stand as what each run did.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/iterations/6/retry-triage?wait=true",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "iteration_id": 7,
+      "session_id": 7,
+      "seq": 2,
+      "status": "FINISHED",
+      "stage": "COMPLETE",
+      "poll_url": "/v1/iterations/7",
+      "next_stage": null,
+      "retry_of_iteration_id": 6,
+      "budget_plan": {
+        "APIDIRECT": 60.0,
+        "FR24": 3750.0,
+        "PRICELINE": 200.0,
+        "STAYING": 400.0
+      }
+    }
+  }
+}

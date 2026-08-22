@@ -1,0 +1,17 @@
+{"posts": [
+ {"title":"@azreporter on X","url":"https://x.com/azreporter/status/1001",
+  "date":"2026-07-27T10:12:00Z","author":"azreporter","source":"Twitter (X)",
+  "domain":"x.com",
+  "snippet":"Demonstration team jets on the flightline at the Riverside Fairground in Phoenix ahead of this weekend's flying display.",
+  "likes":840,"retweets":312,"replies":77,"quotes":18,"bookmarks":60,"views":91000,
+  "author_followers":42000,"author_verified":true,"lang":"en",
+  "is_reply":false,"is_quote":false,
+  "hashtags":["Phoenix","Airshow"],"user_mentions":["RiversideFairground"]},
+ {"title":"@localwatch on X","url":"https://x.com/localwatch/status/1002",
+  "date":"2026-07-27T09:40:00Z","author":"localwatch","source":"Twitter (X)",
+  "domain":"x.com",
+  "snippet":"Ground crew and static display aircraft arriving at the Riverside Fairground since dawn; practice day is tomorrow.",
+  "likes":120,"retweets":44,"replies":9,"quotes":2,"bookmarks":7,"views":8800,
+  "author_followers":3100,"author_verified":false,"lang":"en",
+  "is_reply":false,"is_quote":false,"hashtags":["Phoenix"],"user_mentions":[]}
+], "pages":1, "count":2}

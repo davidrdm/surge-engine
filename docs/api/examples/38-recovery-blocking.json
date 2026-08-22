@@ -1,0 +1,81 @@
+{
+  "name": "38-recovery-blocking",
+  "note": "`interrupted` is what THIS process found dead at startup. `blocking` is everything a new iteration would be refused for — a superset, and the list to act on. An iteration left open without a crash appears only here.",
+  "request": {
+    "method": "GET",
+    "path": "/v1/recovery",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "epoch": {
+        "epoch_id": 2,
+        "started_at": "2026-07-27T20:00:00+00:00",
+        "host": "example-host",
+        "pid": 10000,
+        "entry_point": "serve",
+        "ended_at": null,
+        "shutdown_kind": null,
+        "stranded": []
+      },
+      "previous_epoch": {
+        "epoch_id": 1,
+        "started_at": "2026-07-27T12:00:00+00:00",
+        "host": "example-host",
+        "pid": 10000,
+        "entry_point": "serve",
+        "ended_at": null,
+        "shutdown_kind": "UNKNOWN",
+        "stranded": []
+      },
+      "interrupted": [
+        {
+          "iteration_id": 2,
+          "session_id": 1,
+          "seq": 2,
+          "kind": "INTERRUPTED",
+          "interrupted_at": "2026-07-27T20:00:00+00:00",
+          "interrupted_stage": "COLLECTING_TIPPED",
+          "stage_pointer": "COLLECTING_TIPPED",
+          "started_at": "2026-07-27T16:00:00+00:00",
+          "resume_url": "/v1/iterations/2/resume",
+          "abandon_url": "/v1/iterations/2/abandon",
+          "plan_url": "/v1/iterations/2/recovery-plan"
+        }
+      ],
+      "blocking": [
+        {
+          "iteration_id": 2,
+          "session_id": 1,
+          "seq": 2,
+          "kind": "INTERRUPTED",
+          "interrupted_at": "2026-07-27T20:00:00+00:00",
+          "interrupted_stage": "COLLECTING_TIPPED",
+          "stage_pointer": "COLLECTING_TIPPED",
+          "started_at": "2026-07-27T16:00:00+00:00",
+          "resume_url": "/v1/iterations/2/resume",
+          "abandon_url": "/v1/iterations/2/abandon",
+          "plan_url": "/v1/iterations/2/recovery-plan"
+        },
+        {
+          "iteration_id": 4,
+          "session_id": 5,
+          "seq": 1,
+          "kind": "OPEN",
+          "interrupted_at": null,
+          "interrupted_stage": null,
+          "stage_pointer": "SEEDING",
+          "started_at": "2026-07-27T21:00:00+00:00",
+          "resume_url": "/v1/iterations/4/resume",
+          "abandon_url": "/v1/iterations/4/abandon",
+          "plan_url": "/v1/iterations/4/recovery-plan"
+        }
+      ],
+      "refused_epochs": []
+    }
+  }
+}

@@ -1,0 +1,9 @@
+-r requirements.txt
+
+pytest>=8.0
+# Property-based testing for the queue invariants: the failure mode that matters
+# is not a specific input but a combination nobody thought to write down.
+hypothesis>=6.100
+# HTTP mocking for the connectors (Phase 2). No live network in CI.
+respx>=0.21
+pyflakes>=3.2

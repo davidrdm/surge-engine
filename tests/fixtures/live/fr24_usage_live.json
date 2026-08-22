@@ -1,0 +1,5 @@
+{
+ "provider": "FR24",
+ "healthy": true,
+ "detail": "throttled but authenticated: FR24 /api/usage -> HTTP 429: Rate limit exceeded (rate limiter failed to prevent a breach)"
+}

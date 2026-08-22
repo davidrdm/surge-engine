@@ -1,0 +1,21 @@
+[
+ {
+  "fr24_id": "333ca4a2",
+  "callsign": "SAS7679",
+  "registration": "EI-SIN",
+  "aircraft_type": "A20N",
+  "origin_iata": "ARN",
+  "dest_iata": "FUE",
+  "operating_as": "SL",
+  "flight_category": "AMBIGUOUS",
+  "category_confidence": "AMBIGUOUS",
+  "flight_status": "airborne_inbound",
+  "eta": "2023-12-15T14:47:28Z",
+  "observed_at": "2026-08-22T15:57:27Z",
+  "lat": 35.34722,
+  "lon": -7.90277,
+  "altitude_ft": 37000,
+  "ground_speed_kts": 440,
+  "source": "ADSB"
+ }
+]

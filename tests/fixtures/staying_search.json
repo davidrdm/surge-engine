@@ -1,0 +1,14 @@
+{"data": [
+ {"id":"stay_1","platform":"booking","platformListingId":"bk-88001",
+  "url":"https://booking.com/h/88001","name":"Downtown Phoenix Loft",
+  "propertyType":"apartment","location":{"lat":33.4501,"lng":-112.0730},
+  "starRating":4,"guestRating":8.7,"reviewCount":412,"bedrooms":2,"bathrooms":1,
+  "amenities":["wifi"],"images":[],"host":{},
+  "price":{"total":184.0,"currency":"USD"}},
+ {"id":"stay_2","platform":"booking","platformListingId":"bk-88002",
+  "url":"https://booking.com/h/88002","name":"Capitol District Suites",
+  "propertyType":"hotel","location":{"lat":33.4470,"lng":-112.0980},
+  "starRating":3,"guestRating":8.1,"reviewCount":980,"bedrooms":1,"bathrooms":1,
+  "amenities":["wifi","parking"],"images":[],"host":{},
+  "price":{"total":151.0,"currency":"USD"}}
+]}

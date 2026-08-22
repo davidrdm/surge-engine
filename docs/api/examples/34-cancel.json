@@ -1,0 +1,28 @@
+{
+  "name": "34-cancel",
+  "note": "Cooperative, not a kill. Honoured at the next stage boundary; CORRELATING and ALERTING still run, because stopping dead would spend the collection budget and then discard the evidence it bought.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/iterations/4/cancel",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "requested_by": "duty analyst",
+      "reason": "wrong city"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "iteration_id": 4,
+      "status": "PENDING",
+      "cancel_requested_at": "2026-07-27T21:00:00+00:00",
+      "will_still_run": [
+        "ALERTING",
+        "CORRELATING"
+      ],
+      "note": "Recorded. The iteration is not currently on a worker, so this takes effect if and when it is resumed."
+    }
+  }
+}

@@ -1,0 +1,62 @@
+[
+ {
+  "listing_id": "760297400684081692",
+  "platform": "airbnb",
+  "name": "Downtown Phx | Private Guesthouse & Parking",
+  "url": "https://www.airbnb.com/rooms/760297400684081692?locale=en-US&currency=USD&adults=2&children=0&check_in=2026-09-07&check_out=2026-09-12",
+  "property_type": "other",
+  "lat": 33.45611,
+  "lon": -112.06137,
+  "bedrooms": 1,
+  "price_total": null,
+  "currency": null
+ },
+ {
+  "listing_id": "1080820836029260484",
+  "platform": "airbnb",
+  "name": "DT Phx guesthouse w fire pit 6 min from airport",
+  "url": "https://www.airbnb.com/rooms/1080820836029260484?locale=en-US&currency=USD&adults=2&children=0&check_in=2026-09-07&check_out=2026-09-12",
+  "property_type": "other",
+  "lat": 33.4642,
+  "lon": -112.0536,
+  "bedrooms": 1,
+  "price_total": null,
+  "currency": null
+ },
+ {
+  "listing_id": "1432815563009702325",
+  "platform": "airbnb",
+  "name": "Arcadian Retreat",
+  "url": "https://www.airbnb.com/rooms/1432815563009702325?locale=en-US&currency=USD&adults=2&children=0&check_in=2026-09-01&check_out=2026-09-06",
+  "property_type": "house",
+  "lat": 33.49806270088434,
+  "lon": -112.00014907402014,
+  "bedrooms": 1,
+  "price_total": null,
+  "currency": null
+ },
+ {
+  "listing_id": "1654777844017172464",
+  "platform": "airbnb",
+  "name": "Modern Downtown PHX 1BR | Free Parking + Pool/Gym",
+  "url": "https://www.airbnb.com/rooms/1654777844017172464?locale=en-US&currency=USD&adults=2&children=0&check_in=2026-09-06&check_out=2026-09-11",
+  "property_type": "apartment",
+  "lat": 33.45701,
+  "lon": -112.06811,
+  "bedrooms": 1,
+  "price_total": null,
+  "currency": null
+ },
+ {
+  "listing_id": "1373296477895951591",
+  "platform": "airbnb",
+  "name": "Urban Cabin",
+  "url": "https://www.airbnb.com/rooms/1373296477895951591?locale=en-US&currency=USD&adults=2&children=0&check_in=2026-10-11&check_out=2026-10-16",
+  "property_type": "cottage",
+  "lat": 33.59215753411138,
+  "lon": -112.01742262244908,
+  "bedrooms": 1,
+  "price_total": null,
+  "currency": null
+ }
+]

@@ -1,0 +1,4794 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Surge I&W",
+    "description": "Tactical indications and warning from four independent open sources.\n\nAlerts correlate four independent sources — social chatter, military and charter\nflights, short-term-rental availability, and rental-car availability — into a\ndeterministic confidence score. The score is computed in Python from a weighted\nmodel whose working is recorded per alert; a language model writes the summary\nsentence and cannot change the number.\n\nRead `/v1/alerts/{id}/evidence` before acting on a score. It resolves every\ncontributing signal back to the raw payload and the queue row that fetched it,\nand reports the band rule that fired and any collection gap that capped it.\n\n**A failure is never an absence of threat.** A source that could not be\ncollected lowers `data_completeness`, caps the band below HIGH, and is named in\nthe alert's caveat. An alert on a PARTIAL iteration is a real finding made from\nincomplete evidence, not a quieter one.\n",
+    "version": "0.6.0"
+  },
+  "paths": {
+    "/v1/sessions": {
+      "post": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "Create Session",
+        "description": "Initialise a session with its key locations.\n\nAirport and pickup mappings are resolved here rather than at tip time, so a\ncity the geo table cannot place is reported as a warning before anything is\ncollected. Discovering it mid-iteration would produce a SKIPPED_NO_MAPPING\nquery, which is correct but arrives hours later and reads as a data gap\nrather than a setup mistake.\n\n**`input_set` loads the geography from a file** (8.7c) instead of inlining\nit — the NAME of a file in `inputs.dir`, never a path. The file is resolved\nall-or-nothing: a city the geo table cannot place is refused by name with a\n422, because a session quietly missing a jurisdiction would report a true\nabsence of evidence about a place nobody looked at. The response echoes the\nresolved geography either way, so an operator sees what they created rather\nthan trusting that a file still says what they remember.",
+        "operationId": "create_session_v1_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request was understood but cannot be acted on — an unknown stage or band, a malformed timestamp, or a session with no cities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "Read Session",
+        "description": "The session as configured, with its resolved geography.",
+        "operationId": "read_session_v1_sessions__session_id__get",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/cities": {
+      "post": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "Add Cities",
+        "description": "Add cities between iterations, never during one.\n\nRefused while an iteration is in flight because stage 1 has already fixed\nthe city set it will collect against; a city added mid-run would be seeded\nby the next iteration anyway, but its absence from this one's correlation\nwould be invisible.",
+        "operationId": "add_cities_v1_sessions__session_id__cities_post",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CitiesIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused because of current state: an iteration is already running for this session, the iteration is not at the stage you asked for, or a paid stage needs an explicit confirm.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request was understood but cannot be acted on — an unknown stage or band, a malformed timestamp, or a session with no cities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/iterations": {
+      "post": {
+        "tags": [
+          "iterations"
+        ],
+        "summary": "Trigger Iteration",
+        "description": "Trigger one iteration. The only thing that starts collection.\n\nReturns 202 and a poll URL; the run continues on a worker. `?wait=true`\nblocks up to the configured timeout for CLI use and still returns 202 if the\nrun outlives it — the iteration is not abandoned, because one that has\nalready paid for collection should finish and record what it bought.\n\n**Send an `Idempotency-Key`.** This endpoint spends money. A client that\nloses the response to a network timeout otherwise has no safe move: retry\nand it may buy a second full collection pass, don't and there may have been\nno run at all. With a key the retry replays the first response and starts\nnothing, and the reply carries `Idempotent-Replay: true` so a caller can\ntell. Reusing a key for a *different* body is refused with 422 rather than\nsilently answered with the old result.\n\nA 409 here is retryable and carries `Retry-After`.",
+        "operationId": "trigger_iteration_v1_sessions__session_id__iterations_post",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Run synchronously up to api.sync_timeout_s",
+              "default": false,
+              "title": "Wait"
+            },
+            "description": "Run synchronously up to api.sync_timeout_s"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opt-in replay protection. Repeating a POST with the same key returns the first response instead of starting a second run.",
+              "title": "Idempotency-Key"
+            },
+            "description": "Opt-in replay protection. Repeating a POST with the same key returns the first response instead of starting a second run."
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/IterationIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted; poll `poll_url` for progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IterationAccepted"
+                }
+              }
+            },
+            "headers": {
+              "Idempotent-Replay": {
+                "description": "`true` when this response is the stored reply to an earlier request carrying the same `Idempotency-Key`. Absent on a fresh run.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Finished within ?wait=true's timeout.",
+            "headers": {
+              "Idempotent-Replay": {
+                "description": "`true` when this response is the stored reply to an earlier request carrying the same `Idempotency-Key`. Absent on a fresh run.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IterationAccepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused because of current state: an iteration is already running for this session, the iteration is not at the stage you asked for, or a paid stage needs an explicit confirm.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying. Present only when waiting helps — a 409 from an iteration that was never finished omits it, because that one clears only by resuming or abandoning the iteration.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request was understood but cannot be acted on — an unknown stage or band, a malformed timestamp, or a session with no cities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "iterations"
+        ],
+        "summary": "List Iterations",
+        "description": "This session's iterations, most recent first.",
+        "operationId": "list_iterations_v1_sessions__session_id__iterations_get",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IterationOut"
+                  },
+                  "title": "Response List Iterations V1 Sessions  Session Id  Iterations Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/iterations/{iteration_id}": {
+      "get": {
+        "tags": [
+          "iterations"
+        ],
+        "summary": "Read Iteration",
+        "description": "The poll target for the 202.",
+        "operationId": "read_iteration_v1_iterations__iteration_id__get",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "iteration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Iteration Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IterationOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/alerts": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "List Alerts",
+        "description": "The required output: alerts with their evidence, most severe first.\n\n`format=tuple` returns the four evidence groups as a positional array in the\norder the requirement names them, for clients that want the literal tuple\nshape rather than keys they would have to trust.\n\n**Unfiltered means unfiltered.** Every alert is returned regardless of\nreview state, because an operator cannot review what the API hides. A\nclient that distributes onward should pass `review_state=RELEASED`;\none that shows an analyst a queue should pass `UNREVIEWED`. Defaulting to\nRELEASED here would have made an unreviewed alert invisible rather than\nunreviewed — the same failure as reporting a coverage gap as quiet.",
+        "operationId": "list_alerts_v1_sessions__session_id__alerts_get",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO-8601 lower bound",
+              "title": "Since"
+            },
+            "description": "ISO-8601 lower bound"
+          },
+          {
+            "name": "min_confidence",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "LOW | MEDIUM | HIGH — inclusive floor",
+              "title": "Min Confidence"
+            },
+            "description": "LOW | MEDIUM | HIGH — inclusive floor"
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "name": "track",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Track"
+            }
+          },
+          {
+            "name": "iteration_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Iteration Id"
+            }
+          },
+          {
+            "name": "review_state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "UNREVIEWED | RELEASED | WITHHELD. A consumer distributing onward should ask for RELEASED.",
+              "title": "Review State"
+            },
+            "description": "UNREVIEWED | RELEASED | WITHHELD. A consumer distributing onward should ask for RELEASED."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(named|tuple)$",
+              "default": "named",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AlertOut"
+                      }
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AlertTupleOut"
+                      }
+                    }
+                  ],
+                  "title": "Response List Alerts V1 Sessions  Session Id  Alerts Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request was understood but cannot be acted on — an unknown stage or band, a malformed timestamp, or a session with no cities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/alerts/{alert_id}/evidence": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Read Evidence",
+        "description": "Every contributing signal back to the raw payload and the queue row.\n\nThis is what makes a score arguable rather than merely reported. The\narithmetic is included — per-family weight × quality, the band rule that\nfired, and the completeness that capped it — because whoever is asked to\nact on a number is entitled to see how it was reached.\n\nA signal whose raw payload has passed its retention deadline shows\n`raw: null` with the query row intact. FR24's licence requires deletion\nafter 30 days; the analytical record deliberately outlives the licensed data.\n\n**The evidence surface is the normalised record, not the vendor payload**\n(8.2). By default `raw.payload` and the query parameters are withheld and\ndescribed rather than returned: what may be redistributed from a provider\nresponse is a rights question per provider (8.3), not something this\nendpoint should assume, and the parameters carry the search lexicon and\nfacility coordinates. What is always returned is everything needed to argue\nwith the conclusion — the normalised signal, its provenance and receipt, the\nper-family arithmetic, and enough about the payload (provider, timestamps,\nretention deadline, content hash) to demand it through another channel.\nSet `api.expose_raw_payloads: true` to include them.",
+        "operationId": "read_evidence_v1_alerts__alert_id__evidence_get",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/correlations/{correlation_id}/evidence": {
+      "get": {
+        "tags": [
+          "correlations"
+        ],
+        "summary": "Read Correlation Evidence",
+        "description": "The same drill-down, for a correlation that produced no alert (8.7b).\n\nIdentical shape to `GET /v1/alerts/{id}/evidence` — that endpoint now\nresolves its correlation and delegates here — with `alert_id`, `summary`,\n`caveat` and `receipt` null when no alert was written, and\n`alert_decision` saying why.\n\n**This is the calibration surface.** A correlation below\n`correlation.alert_min_score` is a near miss, and the near misses are what\nthe interim floors in `correlation` and `sensitivity` are meant to be set\nfrom. Until now they were reachable only by opening the database, which also\nmeant no front end could ever show one.\n\nOperational, not debug: an analyst tuning floors on a deployment serving\nan operations team should not have to mount the endpoint that deletes\nanalytical records in order to do it. Read-only over rows that already\nexist.",
+        "operationId": "read_correlation_evidence_v1_correlations__correlation_id__evidence_get",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "correlation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Correlation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/iterations/{iteration_id}/correlations": {
+      "get": {
+        "tags": [
+          "correlations"
+        ],
+        "summary": "Read Correlations",
+        "description": "Every correlation this iteration scored, alerting or not.\n\nOne row per city and actor track that produced any evidence at all. The\nones that became alerts are reachable through `/v1/sessions/{id}/alerts`;\nthe ones that did not were, before 8.7(b), reachable nowhere.\n\n`alert_decision` says what ALERTING concluded about each and why.\n`evidence_url` drills into any of them.",
+        "operationId": "read_correlations_v1_iterations__iteration_id__correlations_get",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "iteration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Iteration Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorrelationsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/iterations/{iteration_id}/retry-triage": {
+      "post": {
+        "tags": [
+          "iterations"
+        ],
+        "summary": "Retry Triage",
+        "description": "Re-judge the posts this iteration's model calls never answered (8.8).\n\nA batch that overruns `llm.max_tokens` records **every** post in it as\n`MODEL_ERROR`: the evidence was collected and paid for, only the judgement\nis missing. This recovers those judgements and lets them tip collection.\n\n**It creates a NEW iteration**, a child of this one, and never edits the\nparent. The parent stays as it was — partial, degraded, its gap named — and\nthe child carries `retry_of_iteration_id`. Two records in the order they\nhappened rather than one rewritten after the fact.\n\nThe child inherits the parent's `anchor_at`, because the correlation window\nis measured from it and a fresh anchor would slide the window off the\nevidence the retry exists to complete. It runs TRIAGING through ALERTING:\nSEEDING and COLLECTING_SOCIAL are inherited rather than re-run, and\nSCHEDULING is skipped because the parent already queued follow-ons for this\nsame evidence. Correlation reads signals across the session by observation\ntime, so the child scores the union of both runs' evidence without anything\nbeing copied.\n\n**Only `UNDECIDED`, `INVALID_OUTPUT` and `MODEL_ERROR` are retried.**\nACCEPTED and REJECTED are completed judgements and a rejection is a\nconclusion, not a failure. A post dropped for being older than\n`triage.max_post_age_hours` has no decision row at all, so it cannot be\nreached — that requirement holds by construction rather than by a second\nfilter that could drift from the first.\n\n**Send an `Idempotency-Key`.** This endpoint spends model tokens and tips\npaid collection, and it is *more* dangerous to retry blindly than the\ntrigger is: the parent's `MODEL_ERROR` rows are deliberately never edited,\nso the candidate set is unchanged by a successful retry and a repeated call\nwould create another child and spend again, indefinitely. With a key the\nretry replays the first response and starts nothing.\n\n409 if the parent has not closed or the session has an iteration open;\n422 if there is nothing to retry.",
+        "operationId": "retry_triage_v1_iterations__iteration_id__retry_triage_post",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "iteration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Iteration Id"
+            }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Run synchronously up to api.sync_timeout_s",
+              "default": false,
+              "title": "Wait"
+            },
+            "description": "Run synchronously up to api.sync_timeout_s"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opt-in replay protection. Repeating a POST with the same key returns the first response instead of starting a second retry.",
+              "title": "Idempotency-Key"
+            },
+            "description": "Opt-in replay protection. Repeating a POST with the same key returns the first response instead of starting a second retry."
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RetryTriageIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted; poll `poll_url` for progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IterationAccepted"
+                }
+              }
+            },
+            "headers": {
+              "Idempotent-Replay": {
+                "description": "`true` when this response is the stored reply to an earlier request carrying the same `Idempotency-Key`. Absent on a fresh run.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Finished within ?wait=true's timeout.",
+            "headers": {
+              "Idempotent-Replay": {
+                "description": "`true` when this response is the stored reply to an earlier request carrying the same `Idempotency-Key`. Absent on a fresh run.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IterationAccepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused because of current state: an iteration is already running for this session, the iteration is not at the stage you asked for, or a paid stage needs an explicit confirm.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying. Present only when waiting helps — a 409 from an iteration that was never finished omits it, because that one clears only by resuming or abandoning the iteration.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request was understood but cannot be acted on — an unknown stage or band, a malformed timestamp, or a session with no cities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/iterations/{iteration_id}/cancel": {
+      "post": {
+        "tags": [
+          "iterations"
+        ],
+        "summary": "Cancel Iteration",
+        "description": "Ask a running iteration to stop early.\n\n**Cooperative, not a kill.** The request is recorded and honoured at the\nnext stage boundary; the iteration then runs CORRELATING and ALERTING and\ncloses PARTIAL. A hard stop would spend money on collection and throw away\nthe evidence it bought, and would produce no alert at all for a city whose\ncoverage may be nearly complete — a real cluster reading as silence, which\nis the one outcome this system exists to prevent.\n\nThe skipped stages are recorded as degradations and the uncollected work\nflows into `data_completeness`, so the band is capped and the caveat names\nthe gap. Cancelling cannot launder a partial run into full confidence.\n\n409 if the iteration has already finished — there is nothing to stop, and\nreporting success would imply the run was shortened when it was not.",
+        "operationId": "cancel_iteration_v1_iterations__iteration_id__cancel_post",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "iteration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Iteration Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CancelIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused because of current state: an iteration is already running for this session, the iteration is not at the stage you asked for, or a paid stage needs an explicit confirm.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/alerts/{alert_id}/review": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Review Alert",
+        "description": "Record a human decision about distributing this alert.\n\nDistribution only. The score, the band, the evidence and the receipts are\nuntouched — a reviewer governs what leaves the system, not what it\nconcluded. That separation is deliberate: an alert withheld for being\noperationally unhelpful must remain in the record at its computed\nconfidence, or the audit trail becomes a record of what was published\nrather than of what was found.\n\nSetting UNREVIEWED again clears the reviewer and note rather than leaving\nsomeone's name attached to a state they no longer hold.",
+        "operationId": "review_alert_v1_alerts__alert_id__review_post",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request was understood but cannot be acted on — an unknown stage or band, a malformed timestamp, or a session with no cities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/capabilities": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Read Capabilities",
+        "description": "What this deployment can and cannot collect, stated up front.\n\nThis endpoint exists because \"no alerts for this county\" and \"this county\nwas never collectable\" are identical on the wire, and the second silently\nreads as reassurance. An unsupported jurisdiction is now reported as\nunsupported.\n\nWith `?city=` it answers per jurisdiction: whether the name resolves, which\nairports and pickup point it maps to, and which source families would\ntherefore produce nothing. Cheap and offline — it consults the geo tables\nand the configuration, and calls no vendor.",
+        "operationId": "read_capabilities_v1_capabilities_get",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Repeatable. Ask whether a jurisdiction is collectable BEFORE creating a session for it.",
+              "title": "City"
+            },
+            "description": "Repeatable. Ask whether a jurisdiction is collectable BEFORE creating a session for it."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/queue": {
+      "get": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Read Queue",
+        "description": "Queue state and every refusal, by outcome.\n\nThe refusals are the point. A query that was deduped, cooled down, capped or\npriced out is a decision the system made, and an operator wondering why a\ncity was not searched needs to see it rather than infer it from silence.",
+        "operationId": "read_queue_v1_sessions__session_id__queue_get",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "iteration_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Iteration Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/recovery": {
+      "get": {
+        "tags": [
+          "recovery"
+        ],
+        "summary": "Read Recovery",
+        "description": "What this process found when it started, and what still needs a decision.\n\nEvery interrupted iteration is listed with the stage it died in and the two\nURLs that can close it. There is no third option and no force-unstick: both\nexits write a record.",
+        "operationId": "read_recovery_v1_recovery_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ]
+      }
+    },
+    "/v1/iterations/{iteration_id}/recovery-plan": {
+      "get": {
+        "tags": [
+          "recovery"
+        ],
+        "summary": "Read Recovery Plan",
+        "description": "What a resume would re-collect, and what it would leave alone.\n\nRead-only, and 409 rather than 200 when the iteration is not interrupted —\na client that got a 200 here might act on it.",
+        "operationId": "read_recovery_plan_v1_iterations__iteration_id__recovery_plan_get",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "iteration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Iteration Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryPlanOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused because of current state: an iteration is already running for this session, the iteration is not at the stage you asked for, or a paid stage needs an explicit confirm.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/iterations/{iteration_id}/resume": {
+      "post": {
+        "tags": [
+          "recovery"
+        ],
+        "summary": "Resume Iteration",
+        "description": "Continue an interrupted iteration from where it stopped.\n\nThe interrupted stage is re-run rather than skipped — it was incomplete —\nand that is safe because every agent is re-entrant: collection claims only\nPENDING rows, triage skips URLs it already ruled on, alerting skips\ncorrelations that already have an alert, and correlation upserts.\n\nRefuses without `confirm_respend` when the plan would collect again. FR24\nbills per record returned and one historical query was measured at 60\ncredits, so this is a purchase and the caller has to say so.",
+        "operationId": "resume_iteration_v1_iterations__iteration_id__resume_post",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "iteration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Iteration Id"
+            }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Wait"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ResumeIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted; poll `poll_url`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IterationAccepted"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Finished within ?wait=true's timeout.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IterationAccepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused because of current state: an iteration is already running for this session, the iteration is not at the stage you asked for, or a paid stage needs an explicit confirm.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request was understood but cannot be acted on — an unknown stage or band, a malformed timestamp, or a session with no cities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/iterations/{iteration_id}/abandon": {
+      "post": {
+        "tags": [
+          "recovery"
+        ],
+        "summary": "Abandon Iteration",
+        "description": "Close an interrupted iteration, counting the lost collection honestly.\n\nThe stranded queries become `INTERRUPTED`, which is in\n`UNRELIABLE_QUERY_STATUSES` — so they lower `data_completeness`, cap the\nband below HIGH, and get named in the alert caveat, with no change to the\nscoring code.\n\nThen it correlates and alerts on what *was* collected. Skipping that would\nclose the iteration with no alert at all for a city whose evidence may be\nnearly complete, which is a real cluster reading as silence. It never\nschedules follow-ons: work queued by an iteration nobody finished would\narrive as a surprise next run.",
+        "operationId": "abandon_iteration_v1_iterations__iteration_id__abandon_post",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "iteration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Iteration Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbandonIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbandonOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused because of current state: an iteration is already running for this session, the iteration is not at the stage you asked for, or a paid stage needs an explicit confirm.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/healthz": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Healthz",
+        "description": "Liveness. Unauthenticated by design; vendor probing is not.\n\n`deep=true` calls every connector's health check, which costs rate-limit\nbudget at four providers. Leaving that reachable without a token would make\nan unauthenticated port a free way to exhaust the collection capacity this\nsystem depends on, so the deep check requires the same bearer token as\neverything else.",
+        "operationId": "healthz_v1_healthz_get",
+        "parameters": [
+          {
+            "name": "deep",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Also probe the four vendors; requires authentication",
+              "default": false,
+              "title": "Deep"
+            },
+            "description": "Also probe the four vendors; requires authentication"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "BearerToken": []
+          }
+        ]
+      }
+    },
+    "/v1/iterations/{iteration_id}/step": {
+      "post": {
+        "tags": [
+          "debug"
+        ],
+        "summary": "Step Iteration",
+        "description": "Run exactly one stage and return what it did.\n\nThe step response carries the stage's own report, so stepping and verifying\nare one round trip rather than two — when a stage does something surprising\nyou want the counts in front of you, not a second URL to visit.",
+        "operationId": "step_iteration_v1_iterations__iteration_id__step_post",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "iteration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Iteration Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/StepIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused because of current state: an iteration is already running for this session, the iteration is not at the stage you asked for, or a paid stage needs an explicit confirm.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request was understood but cannot be acted on — an unknown stage or band, a malformed timestamp, or a session with no cities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/iterations/{iteration_id}/stages": {
+      "get": {
+        "tags": [
+          "debug"
+        ],
+        "summary": "Read Stages",
+        "description": "What happened in every stage, including the ones that never ran.\n\nA stage the iteration never reached is as much a part of what happened as\none that did, so all eight are always present with an explicit status.",
+        "operationId": "read_stages_v1_iterations__iteration_id__stages_get",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "iteration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Iteration Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StagesOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/iterations/{iteration_id}/stages/{stage}": {
+      "get": {
+        "tags": [
+          "debug"
+        ],
+        "summary": "Read Stage",
+        "description": "One stage in detail: what it wrote, who ran, what it spent, its log.",
+        "operationId": "read_stage_v1_iterations__iteration_id__stages__stage__get",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "iteration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Iteration Id"
+            }
+          },
+          {
+            "name": "stage",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Stage"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StageOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request was understood but cannot be acted on — an unknown stage or band, a malformed timestamp, or a session with no cities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/iterations/{iteration_id}/discard-last-stage": {
+      "post": {
+        "tags": [
+          "debug"
+        ],
+        "summary": "Discard Last Stage",
+        "description": "Remove the last stage's output and point the iteration back at it.\n\nOnly the last stage, and one at a time — discarding TRIAGING while TIPPING's\nqueries still reference its signals would break the guarantee that every\nquery traces to the post that caused it. Repeated calls walk backwards, so\nany point is still reachable.\n\n`api_calls` and `agent_log` are never deleted. The money is a fact about the\nworld rather than an output of the stage, and the audit trail has to record\nthe one destructive operation in the system rather than be erased by it.",
+        "operationId": "discard_last_stage_v1_iterations__iteration_id__discard_last_stage_post",
+        "security": [
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "iteration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Iteration Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DiscardIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscardOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, iteration or alert.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused because of current state: an iteration is already running for this session, the iteration is not at the stage you asked for, or a paid stage needs an explicit confirm.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request was understood but cannot be acted on — an unknown stage or band, a malformed timestamp, or a session with no cities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SURGE_API_TOKEN is not configured; the API refuses to serve without authentication rather than serving without it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AbandonIn": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "confirm": {
+            "type": "boolean",
+            "title": "Confirm",
+            "default": false
+          },
+          "finalise": {
+            "type": "boolean",
+            "title": "Finalise",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "AbandonIn"
+      },
+      "AbandonOut": {
+        "properties": {
+          "iteration_id": {
+            "type": "integer",
+            "title": "Iteration Id"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "queries_marked_interrupted": {
+            "type": "integer",
+            "title": "Queries Marked Interrupted",
+            "default": 0
+          },
+          "coverage_gaps": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Coverage Gaps",
+            "description": "Source types now counted as missing collection, by count. These lower data_completeness and cap the band."
+          },
+          "correlations_written": {
+            "type": "integer",
+            "title": "Correlations Written",
+            "default": 0
+          },
+          "alerts_written": {
+            "type": "integer",
+            "title": "Alerts Written",
+            "default": 0
+          },
+          "scheduling_skipped": {
+            "type": "boolean",
+            "title": "Scheduling Skipped",
+            "description": "Abandon never schedules follow-ons: work queued by an iteration nobody finished would arrive as a surprise.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "iteration_id"
+        ],
+        "title": "AbandonOut"
+      },
+      "AlertOut": {
+        "properties": {
+          "review_state": {
+            "type": "string",
+            "title": "Review State",
+            "default": "UNREVIEWED"
+          },
+          "alert_id": {
+            "type": "integer",
+            "title": "Alert Id"
+          },
+          "iteration_id": {
+            "type": "integer",
+            "title": "Iteration Id"
+          },
+          "city": {
+            "type": "string",
+            "title": "City",
+            "description": "\"Name, ST\", or just the name if no state."
+          },
+          "track": {
+            "type": "string",
+            "title": "Track",
+            "description": "One of the loaded mission's tracks. Not an enum in this schema because the permitted values come from a mission pack read at startup; `GET /v1/capabilities` reports the live set as `mission.tracks`."
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/Confidence",
+            "description": "Computed deterministically in Python. Not a probability, and not to be presented to a decision-maker as one."
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "One or two sentences, written by a language model that is never shown the score and cannot change it."
+          },
+          "caveat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caveat",
+            "description": "Deterministic disclosure, written in Python and never by the model, so it cannot be softened or dropped. Present when a source could not be collected — naming the family and, for a partial loss, the endpoint — and ALSO when this iteration contributed no evidence of its own, in which case it names the iteration that last did and how old the contributing signals are. Either can appear without the other."
+          },
+          "earliest_eta": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Eta",
+            "description": "Soonest arrival among the contributing flights. The most actionable single field when it is present."
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "evidence_url": {
+            "type": "string",
+            "title": "Evidence Url",
+            "description": "Drill-down to every contributing signal and the arithmetic."
+          },
+          "social_posts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Social Posts",
+            "description": "Contributing social signals."
+          },
+          "flights": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Flights",
+            "description": "Contributing flights. `category_confidence: AMBIGUOUS` means the source could not determine the category, not that it is unknown to the operator."
+          },
+          "lodging": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Lodging",
+            "description": "Short-term-rental availability, and hotel price where the price signal is enabled."
+          },
+          "rental_cars": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Rental Cars",
+            "description": "Rental-car availability by class."
+          }
+        },
+        "type": "object",
+        "required": [
+          "alert_id",
+          "iteration_id",
+          "city",
+          "track",
+          "confidence",
+          "summary",
+          "created_at",
+          "evidence_url"
+        ],
+        "title": "AlertOut",
+        "description": "One correlated finding with the evidence behind it."
+      },
+      "AlertTupleOut": {
+        "properties": {
+          "alert_id": {
+            "type": "integer",
+            "title": "Alert Id"
+          },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "track": {
+            "type": "string",
+            "title": "Track",
+            "description": "One of the loaded mission's tracks. Not an enum in this schema because the permitted values come from a mission pack read at startup; `GET /v1/capabilities` reports the live set as `mission.tracks`."
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/Confidence"
+          },
+          "caveat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caveat"
+          },
+          "evidence": {
+            "items": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "evidence_url": {
+            "type": "string",
+            "title": "Evidence Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alert_id",
+          "city",
+          "track",
+          "summary",
+          "confidence",
+          "evidence",
+          "evidence_url"
+        ],
+        "title": "AlertTupleOut",
+        "description": "`?format=tuple`: the four evidence groups as a positional array.\n\nThe requirement asks for an array of tuples of (social posts, flights,\nlodging changes, car availability), each carrying a summary and a\nconfidence score. JSON has no tuple type, so `evidence` is a fixed\nfour-element array in that exact order and the summary and confidence stay\naddressable beside it rather than being appended as positions five and six."
+      },
+      "CancelIn": {
+        "properties": {
+          "requested_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested By"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CancelIn",
+        "description": "Why a run is being stopped. The reason is recorded, not just the act."
+      },
+      "CancelOut": {
+        "properties": {
+          "iteration_id": {
+            "type": "integer",
+            "title": "Iteration Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "cancel_requested_at": {
+            "type": "string",
+            "title": "Cancel Requested At"
+          },
+          "will_still_run": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Will Still Run"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "iteration_id",
+          "status",
+          "cancel_requested_at"
+        ],
+        "title": "CancelOut"
+      },
+      "CapabilitiesOut": {
+        "properties": {
+          "mission": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Mission",
+            "description": "Which mission definition this deployment loaded, and the vocabularies it supplies. **This is where the permitted `track` and `location_type` values come from.** They are reported here rather than declared as enums in this schema because they are read from a mission pack at startup, so no fixed enum could describe them — a deployment running a different pack accepts different values against this same contract. Carries `id`, `version`, `digest`, `tracks` and `location_types`; `digest` is the hash stamped on every receipt, so a client holding an alert can tell whether the definition has changed since it was written. When `configured` is false no mission is loaded: the database and this contract are available but no iteration can run, and `effect` says so."
+          },
+          "tracks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tracks",
+            "description": "Tracks defined by the loaded mission. Not an enum in this schema because the permitted values come from a mission pack read at startup; `GET /v1/capabilities` reports the live set as `mission.tracks`."
+          },
+          "signal_families": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Signal Families"
+          },
+          "providers": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Providers"
+          },
+          "geography": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Geography"
+          },
+          "retention": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Retention"
+          },
+          "cities": {
+            "items": {
+              "$ref": "#/components/schemas/CapabilityCity"
+            },
+            "type": "array",
+            "title": "Cities"
+          },
+          "open_rights_questions": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Open Rights Questions"
+          },
+          "caveats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Caveats"
+          }
+        },
+        "type": "object",
+        "title": "CapabilitiesOut",
+        "description": "What the system can and cannot do, before anyone asks it to.\n\nExists so that \"no alerts for this county\" can be distinguished from \"this\ncounty was never collectable\". Without it the two are identical on the\nwire, and the second one silently reads as reassurance."
+      },
+      "CapabilityCity": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "resolved": {
+            "type": "boolean",
+            "title": "Resolved"
+          },
+          "resolved_by": {
+            "type": "string",
+            "title": "Resolved By"
+          },
+          "airports": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Airports"
+          },
+          "pickup_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pickup Location"
+          },
+          "supported_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Sources"
+          },
+          "unsupported_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unsupported Sources"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "resolved",
+          "resolved_by"
+        ],
+        "title": "CapabilityCity",
+        "description": "What this deployment could actually collect for one jurisdiction."
+      },
+      "CitiesIn": {
+        "properties": {
+          "cities": {
+            "items": {
+              "$ref": "#/components/schemas/CityIn"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Cities"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cities"
+        ],
+        "title": "CitiesIn"
+      },
+      "CityIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "key_locations": {
+            "items": {
+              "$ref": "#/components/schemas/KeyLocationIn"
+            },
+            "type": "array",
+            "title": "Key Locations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CityIn"
+      },
+      "CityOut": {
+        "properties": {
+          "city_id": {
+            "type": "integer",
+            "title": "City Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "is_seed": {
+            "type": "boolean",
+            "title": "Is Seed",
+            "default": true
+          },
+          "admitted_by": {
+            "type": "string",
+            "title": "Admitted By",
+            "default": "USER"
+          },
+          "key_locations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Key Locations"
+          },
+          "airports": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Airports"
+          },
+          "pickup_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pickup Location"
+          }
+        },
+        "type": "object",
+        "required": [
+          "city_id",
+          "name"
+        ],
+        "title": "CityOut"
+      },
+      "Confidence": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "description": "0..1. A weighted sum of per-family weight x quality, not a probability."
+          },
+          "band": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "title": "Band",
+            "description": "Cannot be HIGH when any contributing source failed."
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "band"
+        ],
+        "title": "Confidence",
+        "description": "An ALERT's score and band. NONE is impossible here by construction."
+      },
+      "CorrelationConfidence": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score"
+          },
+          "band": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "title": "Band",
+            "description": "NONE means no band rule fired at all, which is a result rather than an absence of one."
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "band"
+        ],
+        "title": "CorrelationConfidence",
+        "description": "A CORRELATION's score and band, which may be NONE.\n\nSeparate from `Confidence` rather than widening it. NONE is a real computed\noutcome — \"we looked and this did not reach a band\" — and is stored so that\nfinding nothing is on the record; but an alert is never written for one, so\nthe alert contract keeps the narrower type that says so.\n\nReusing the alert model here was a 500 on the very case the correlation\nroutes exist to expose: a band-NONE correlation failed validation and the\nlisting crashed. The tests missed it because their fixture raises\n`alert_min_score`, which produces a BELOW_FLOOR row with a real band —\nnever the sub-threshold band itself."
+      },
+      "CorrelationOut": {
+        "properties": {
+          "correlation_id": {
+            "type": "integer",
+            "title": "Correlation Id"
+          },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "track": {
+            "type": "string",
+            "title": "Track",
+            "description": "One of the loaded mission's tracks. Not an enum in this schema because the permitted values come from a mission pack read at startup; `GET /v1/capabilities` reports the live set as `mission.tracks`."
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/CorrelationConfidence"
+          },
+          "distinct_types": {
+            "type": "integer",
+            "title": "Distinct Types",
+            "default": 0
+          },
+          "data_completeness": {
+            "type": "number",
+            "title": "Data Completeness",
+            "description": "Share of the four signal families collected at all. A family counts as missing only when NOTHING in it was collected — see `failed_families`.",
+            "default": 1.0
+          },
+          "band_capped": {
+            "type": "boolean",
+            "title": "Band Capped",
+            "default": false
+          },
+          "failed_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failed Sources",
+            "description": "Every failed collection as `SOURCE_TYPE:endpoint`, e.g. `LODGING:/search`. Finer than `failed_families`, and does NOT drive `data_completeness`."
+          },
+          "failed_families": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failed Families",
+            "description": "Signal families with NOTHING collected — what `data_completeness` counts. A family in `failed_sources` but absent here was degraded, not lost."
+          },
+          "rule_trace": {
+            "type": "string",
+            "title": "Rule Trace",
+            "default": ""
+          },
+          "contributions": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Contributions"
+          },
+          "alert_decision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ALERTED",
+                  "BELOW_FLOOR",
+                  "BAND_NONE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Decision",
+            "description": "What ALERTING concluded. BELOW_FLOOR: under `correlation.alert_min_score`. BAND_NONE: no band qualified. Null means ALERTING has not run for this iteration yet, which is not the same as deciding against."
+          },
+          "alert_decision_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Decision Reason",
+            "description": "The decision in words, with the numbers that produced it. Written by the agent that decided, so a reader does not have to hold the configuration to reconstruct it."
+          },
+          "alerted": {
+            "type": "boolean",
+            "title": "Alerted",
+            "default": false
+          },
+          "computed_at": {
+            "type": "string",
+            "title": "Computed At",
+            "default": ""
+          },
+          "evidence_url": {
+            "type": "string",
+            "title": "Evidence Url",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "correlation_id",
+          "city",
+          "track",
+          "confidence"
+        ],
+        "title": "CorrelationOut",
+        "description": "One scored city/track, whether or not it became an alert (8.7b)."
+      },
+      "CorrelationsOut": {
+        "properties": {
+          "iteration_id": {
+            "type": "integer",
+            "title": "Iteration Id"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "correlations": {
+            "items": {
+              "$ref": "#/components/schemas/CorrelationOut"
+            },
+            "type": "array",
+            "title": "Correlations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "iteration_id"
+        ],
+        "title": "CorrelationsOut",
+        "description": "Everything an iteration scored. The sub-threshold rows are the point.\n\nA correlation that produced no alert is the near miss, and the near misses\nare what the interim floors in `correlation` and `sensitivity` are meant to\nbe calibrated from. They have no alert row, and every other route into the\nevidence surface resolves `alerts.correlation_id` first."
+      },
+      "DiscardIn": {
+        "properties": {
+          "expect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expect"
+          },
+          "confirm": {
+            "type": "boolean",
+            "title": "Confirm",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DiscardIn"
+      },
+      "DiscardOut": {
+        "properties": {
+          "iteration_id": {
+            "type": "integer",
+            "title": "Iteration Id"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "deleted": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Deleted"
+          },
+          "queries_reset": {
+            "type": "integer",
+            "title": "Queries Reset",
+            "default": 0
+          },
+          "units_spent": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Units Spent"
+          },
+          "not_reverted": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Not Reverted"
+          },
+          "degradations_retracted": {
+            "type": "integer",
+            "title": "Degradations Retracted",
+            "description": "Notes this stage had recorded about what it could not do, removed with its rows. A gap the re-run may close must not outlive the evidence for it.",
+            "default": 0
+          },
+          "next_stage": {
+            "type": "string",
+            "title": "Next Stage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "iteration_id",
+          "stage",
+          "next_stage"
+        ],
+        "title": "DiscardOut"
+      },
+      "EpochOut": {
+        "properties": {
+          "epoch_id": {
+            "type": "integer",
+            "title": "Epoch Id"
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "pid": {
+            "type": "integer",
+            "title": "Pid"
+          },
+          "entry_point": {
+            "type": "string",
+            "title": "Entry Point"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "shutdown_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "CLEAN",
+                  "TIMEOUT",
+                  "UNKNOWN"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shutdown Kind",
+            "description": "UNKNOWN is written by a LATER process onto one it found open, and leaves ended_at null — nothing knows when a killed process died, and inventing a time that later reads as fact is worse than admitting the gap."
+          },
+          "stranded": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Stranded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "epoch_id",
+          "started_at",
+          "host",
+          "pid",
+          "entry_point"
+        ],
+        "title": "EpochOut",
+        "description": "One process instance."
+      },
+      "ErrorOut": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorOut",
+        "description": "Every non-2xx response. FastAPI's HTTPException shape, made explicit.\n\nDeclared so the generated schema documents the failure modes: a contract\nthat lists only the success path tells a client nothing about what to\nhandle, and 401, 409 and 503 are all reachable on routes whose happy path\nlooks unremarkable."
+      },
+      "EvidenceOut": {
+        "properties": {
+          "alert_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Id"
+          },
+          "correlation_id": {
+            "type": "integer",
+            "title": "Correlation Id",
+            "default": 0
+          },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "track": {
+            "type": "string",
+            "title": "Track",
+            "description": "One of the loaded mission's tracks. Not an enum in this schema because the permitted values come from a mission pack read at startup; `GET /v1/capabilities` reports the live set as `mission.tracks`."
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/CorrelationConfidence"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "caveat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caveat"
+          },
+          "alert_decision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ALERTED",
+                  "BELOW_FLOOR",
+                  "BAND_NONE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Decision"
+          },
+          "alert_decision_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Decision Reason"
+          },
+          "rule_trace": {
+            "type": "string",
+            "title": "Rule Trace",
+            "default": ""
+          },
+          "contributions": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Contributions"
+          },
+          "distinct_types": {
+            "type": "integer",
+            "title": "Distinct Types",
+            "default": 0
+          },
+          "data_completeness": {
+            "type": "number",
+            "title": "Data Completeness",
+            "description": "Share of the four signal families that were collected at all. A family counts as missing only when NOTHING in it was collected (9.11): if the lodging availability endpoint failed and the price endpoint succeeded, lodging was measured and does not count against this. Compute it as `1 - len(failed_families) / 4`.",
+            "default": 1.0
+          },
+          "failed_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failed Sources",
+            "description": "Every failed collection as `SOURCE_TYPE:endpoint` — for example `LODGING:/search`. The endpoint is the query's ENTRY endpoint, so a lodging pairing shortfall that happens at `/availability` still reports `/search`; the query row's `skip_reason` carries the precise cause. Where no endpoint was recorded the bare source type appears. This is finer than `failed_families` and does NOT drive `data_completeness`."
+          },
+          "failed_families": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failed Families",
+            "description": "Signal families with NOTHING collected. This is what `data_completeness` counts and what the caveat names; a family present in `failed_sources` but absent here was degraded rather than lost."
+          },
+          "band_capped": {
+            "type": "boolean",
+            "title": "Band Capped",
+            "default": false
+          },
+          "alternatives": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alternatives",
+            "description": "Competing explanations for this evidence, each with a stable `code`, a `statement`, and `weakened_by` — what in THIS correlation argues against it, empty when nothing does, because an unanswered alternative serves a reader better than a manufactured rebuttal. Deterministic, never model-written: the loaded mission supplies the explanations per signal family and the engine decides which of them this evidence admits, so a booking-only correlation admits ordinary-demand explanations that a multi-family one does not. `null` on a correlation computed before these rules existed; an empty list means no family contributed and there is nothing to explain away."
+          },
+          "evidence_freshness": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Freshness"
+          },
+          "flight_baseline": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flight Baseline"
+          },
+          "collection": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Collection",
+            "description": "Contributing signals counted by how directly they are known, so acquisition is one comparable value rather than four per-family provenance fields. `DIRECT` (retrieved from the party that holds the record), `INTERMEDIARY_LIVE` (a vendor's live call against a platform or publisher), `INTERMEDIARY_CACHED` (served from a vendor cache and billed as though fresh, so the ledger is no guide to freshness), `UNRECORDED` (the default, so a writer that forgets produces a visible absence rather than a plausible claim). Empty classes are omitted. The absence of `DIRECT` is the standing fact about this deployment: every provider here is an intermediary."
+          },
+          "signals": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Signals"
+          },
+          "receipt": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt",
+            "description": "Provenance for the model call behind `summary`, or null when the deterministic fallback wrote it. A loose object because the field set follows the provider echo, but three keys are the point of it: `mission_hash` — compare against `mission.digest` from `GET /v1/capabilities` to tell whether the definition has changed since this judgement was made; `config_hash` — compare against `SessionOut.config_hash` for the same question about settings; and `prompt_hash`, which says two judgements were made under the same criteria without disclosing what they are."
+          }
+        },
+        "type": "object",
+        "required": [
+          "city",
+          "track",
+          "confidence"
+        ],
+        "title": "EvidenceOut",
+        "description": "Full drill-down: every contributing signal back to its raw payload."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ],
+            "title": "Status"
+          },
+          "database": {
+            "type": "string",
+            "title": "Database"
+          },
+          "schema_version": {
+            "type": "integer",
+            "title": "Schema Version"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          },
+          "debug_endpoints": {
+            "type": "boolean",
+            "title": "Debug Endpoints",
+            "default": false
+          },
+          "active_sessions": {
+            "type": "integer",
+            "title": "Active Sessions",
+            "default": 0
+          },
+          "running_iterations": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Running Iterations"
+          },
+          "epoch_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epoch Id"
+          },
+          "interrupted_iterations": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Interrupted Iterations"
+          },
+          "budget": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Budget"
+          },
+          "connectors": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connectors"
+          },
+          "retention": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Retention"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "database",
+          "schema_version"
+        ],
+        "title": "HealthOut"
+      },
+      "InterruptedOut": {
+        "properties": {
+          "iteration_id": {
+            "type": "integer",
+            "title": "Iteration Id"
+          },
+          "session_id": {
+            "type": "integer",
+            "title": "Session Id"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "INTERRUPTED",
+              "OPEN"
+            ],
+            "title": "Kind",
+            "description": "INTERRUPTED: a process died mid-run and the reconcile stamped it. OPEN: never finished by any route — a manual walk left partway, or a cancellation recorded against an iteration that was not on a worker. Both block a new iteration and both are closed the same two ways; the distinction tells you what happened, not what to do.",
+            "default": "INTERRUPTED"
+          },
+          "interrupted_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interrupted At",
+            "description": "Null for kind=OPEN. Only the crash reconcile stamps it."
+          },
+          "interrupted_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interrupted Stage"
+          },
+          "stage_pointer": {
+            "type": "string",
+            "title": "Stage Pointer",
+            "default": ""
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At",
+            "default": ""
+          },
+          "resume_url": {
+            "type": "string",
+            "title": "Resume Url",
+            "default": ""
+          },
+          "abandon_url": {
+            "type": "string",
+            "title": "Abandon Url",
+            "default": ""
+          },
+          "plan_url": {
+            "type": "string",
+            "title": "Plan Url",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "iteration_id",
+          "session_id",
+          "seq"
+        ],
+        "title": "InterruptedOut"
+      },
+      "IterationAccepted": {
+        "properties": {
+          "iteration_id": {
+            "type": "integer",
+            "title": "Iteration Id"
+          },
+          "session_id": {
+            "type": "integer",
+            "title": "Session Id"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RUNNING",
+              "PENDING",
+              "FINISHED"
+            ],
+            "title": "Status"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "poll_url": {
+            "type": "string",
+            "title": "Poll Url"
+          },
+          "next_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Stage"
+          },
+          "retry_of_iteration_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Of Iteration Id"
+          },
+          "budget_plan": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Budget Plan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "iteration_id",
+          "session_id",
+          "status",
+          "stage",
+          "poll_url"
+        ],
+        "title": "IterationAccepted"
+      },
+      "IterationIn": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "manual"
+            ],
+            "title": "Mode",
+            "default": "auto"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "IterationIn",
+        "description": "How to run the iteration being created.\n\n`manual` creates it and stops, for stepping through the stages one at a\ntime. `auto` is the normal path and the default: agents must not solicit\nuser interaction inside an iteration, so nothing between stage 1 and stage 8\ncan ask for anything."
+      },
+      "IterationOut": {
+        "properties": {
+          "iteration_id": {
+            "type": "integer",
+            "title": "Iteration Id"
+          },
+          "session_id": {
+            "type": "integer",
+            "title": "Session Id"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "description": "One of the eight pipeline stages, or COMPLETE / FAILED."
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "COMPLETE",
+                  "PARTIAL",
+                  "FAILED"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome",
+            "description": "Null while running. PARTIAL means the sequence finished but something was lost — the alerts are real findings made from incomplete evidence. FAILED means a prerequisite stage never ran and the alerts should not be read at all."
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running",
+            "default": false
+          },
+          "anchor_at": {
+            "type": "string",
+            "title": "Anchor At",
+            "description": "The instant the correlation window centres on.",
+            "default": ""
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At",
+            "default": ""
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "next_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Stage",
+            "description": "What a debug step would run next, if any."
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts",
+            "description": "Queries enqueued/executed/failed/skipped, and rows written per analytical table. `triage_decisions` here is a TOTAL; see `triage_states` for what those decisions were."
+          },
+          "triage_states": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Triage States",
+            "description": "Judgements by durable outcome: `ACCEPTED`, `REJECTED`, `UNDECIDED`, `INVALID_OUTPUT`, `MODEL_ERROR`. Absent keys are zero. The distinction is the point and it is not recoverable from the total: REJECTED is a judgement that the item is not relevant, while UNDECIDED, INVALID_OUTPUT and MODEL_ERROR are posts that were collected and paid for and never judged — a coverage gap, which caps the confidence band and reaches the alert caveat. Before this field a client could only infer that from free-text `degradations`."
+          },
+          "budget": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Budget",
+            "description": "Units billed this iteration, per provider. Always all four providers, zero included."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "RUNNING",
+              "INTERRUPTED",
+              "FINISHED"
+            ],
+            "title": "Status",
+            "description": "The lifecycle state, which `outcome` alone cannot give you: an interrupted iteration has a null outcome and is not running, and a client watching those two fields would never stop. Stop on FINISHED or INTERRUPTED.",
+            "default": "PENDING"
+          },
+          "interrupted_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interrupted At",
+            "description": "Set when a process ended without finishing this run. It never clears, so the history survives a later resume."
+          },
+          "interrupted_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interrupted Stage",
+            "description": "The stage that was in flight when it died."
+          },
+          "retry_of_iteration_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Of Iteration Id",
+            "description": "Set when this iteration is a re-triage of an earlier one (8.8). It re-judged that iteration's unanswered posts, inherited its `anchor_at`, and did not re-collect. The parent is unmodified — both records stand as what each run did."
+          },
+          "resumable": {
+            "type": "boolean",
+            "title": "Resumable",
+            "description": "True while the iteration awaits a resume or an abandon — for a crash-interrupted run and equally for one merely left open. Either blocks a new iteration on this session, so either needs closing.",
+            "default": false
+          },
+          "degradations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Degradations"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "iteration_id",
+          "session_id",
+          "seq",
+          "stage"
+        ],
+        "title": "IterationOut"
+      },
+      "KeyLocationIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 90.0,
+                "minimum": -90.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 180.0,
+                "minimum": -180.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          },
+          "location_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Type",
+            "description": "One of the loaded mission's `location_types`, which `GET /v1/capabilities` reports. Not an enum in this schema because the permitted values come from a mission pack read at startup; an unknown one is refused with a 422 naming the value and listing what was allowed."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "KeyLocationIn"
+      },
+      "QueueOut": {
+        "properties": {
+          "session_id": {
+            "type": "integer",
+            "title": "Session Id"
+          },
+          "iteration_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iteration Id"
+          },
+          "status_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Status Counts"
+          },
+          "decision_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Decision Counts"
+          },
+          "scheduled_ahead": {
+            "type": "integer",
+            "title": "Scheduled Ahead",
+            "default": 0
+          },
+          "queries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Queries"
+          },
+          "decisions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Decisions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "title": "QueueOut"
+      },
+      "RecoveryOut": {
+        "properties": {
+          "epoch": {
+            "$ref": "#/components/schemas/EpochOut"
+          },
+          "previous_epoch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EpochOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "interrupted": {
+            "items": {
+              "$ref": "#/components/schemas/InterruptedOut"
+            },
+            "type": "array",
+            "title": "Interrupted"
+          },
+          "blocking": {
+            "items": {
+              "$ref": "#/components/schemas/InterruptedOut"
+            },
+            "type": "array",
+            "title": "Blocking"
+          },
+          "refused_epochs": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Refused Epochs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "epoch"
+        ],
+        "title": "RecoveryOut",
+        "description": "What the current process found when it started, and what still blocks."
+      },
+      "RecoveryPlanOut": {
+        "properties": {
+          "iteration_id": {
+            "type": "integer",
+            "title": "Iteration Id"
+          },
+          "session_id": {
+            "type": "integer",
+            "title": "Session Id"
+          },
+          "resume_from": {
+            "type": "string",
+            "title": "Resume From"
+          },
+          "derived_by": {
+            "type": "string",
+            "enum": [
+              "RECONCILED",
+              "IN_FLIGHT",
+              "BETWEEN_STAGES",
+              "NOTHING_RAN"
+            ],
+            "title": "Derived By",
+            "description": "How the resume point was decided. RECONCILED is the durable one, read from the row the reconcile stamped."
+          },
+          "stage_pointer": {
+            "type": "string",
+            "title": "Stage Pointer"
+          },
+          "interrupted_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interrupted Stage"
+          },
+          "paid": {
+            "type": "boolean",
+            "title": "Paid",
+            "description": "True when resuming would collect again at a vendor. `confirm_respend` is then required."
+          },
+          "queries_to_recollect": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Queries To Recollect"
+          },
+          "already_banked": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Already Banked",
+            "description": "Paid for and stored before the crash. Not re-bought, and not counted as coverage either — a completed query with no signal reads as 'we looked and found nothing'."
+          },
+          "already_spent": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Already Spent"
+          },
+          "estimated_units_upper_bound": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Estimated Units Upper Bound",
+            "description": "An upper bound, NOT a price. FR24 bills per record returned, so no pre-flight figure can be exact — judge from queries_to_recollect."
+          }
+        },
+        "type": "object",
+        "required": [
+          "iteration_id",
+          "session_id",
+          "resume_from",
+          "derived_by",
+          "stage_pointer",
+          "paid"
+        ],
+        "title": "RecoveryPlanOut",
+        "description": "What resuming would do, before it does any of it."
+      },
+      "ResumeIn": {
+        "properties": {
+          "from_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Stage",
+            "description": "Override the derived resume point. Must not be later than it. Use discard-last-stage to go further back."
+          },
+          "confirm_respend": {
+            "type": "boolean",
+            "title": "Confirm Respend",
+            "description": "Required when the plan would collect again at a vendor. Nothing already spent is reclaimed.",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ResumeIn",
+        "description": "How to restart an interrupted iteration.\n\nTwo fields and no third override. An *earlier* `from_stage` needs no extra\nceremony — naming a stage is itself the explicit act — while a *later* one\nis refused outright, because skipping a stage that never ran is never what\nanyone wants. Collapsing two acknowledgements into one boolean is how\nconfirmations stop meaning anything."
+      },
+      "RetryTriageIn": {
+        "properties": {
+          "batch_size": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Size",
+            "description": "Posts per model call for the retry. Omit to use `triage.batch_size` — the retry halves it on each TruncatedResponse down to one anyway, so an override is only needed to start smaller than the configured value."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RetryTriageIn",
+        "description": "How to re-judge the posts a model failure lost (8.8)."
+      },
+      "ReviewIn": {
+        "properties": {
+          "review_state": {
+            "type": "string",
+            "enum": [
+              "UNREVIEWED",
+              "RELEASED",
+              "WITHHELD"
+            ],
+            "title": "Review State"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "review_state"
+        ],
+        "title": "ReviewIn",
+        "description": "A human decision about DISTRIBUTION. Nothing analytical moves."
+      },
+      "ReviewOut": {
+        "properties": {
+          "alert_id": {
+            "type": "integer",
+            "title": "Alert Id"
+          },
+          "review_state": {
+            "type": "string",
+            "title": "Review State"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alert_id",
+          "review_state"
+        ],
+        "title": "ReviewOut"
+      },
+      "SessionIn": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "cities": {
+            "items": {
+              "$ref": "#/components/schemas/CityIn"
+            },
+            "type": "array",
+            "title": "Cities",
+            "description": "Inline jurisdictions. Omit when using `input_set`."
+          },
+          "input_set": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Set",
+            "description": "NAME of a file in the configured input directory (`inputs.dir`), without the extension — for example 'example'. Not a path: this field would otherwise be a file-disclosure primitive, and an authenticated caller is not thereby trusted with the filesystem. An unresolvable city in the file is refused by name, never silently dropped."
+          },
+          "expand_cities": {
+            "type": "boolean",
+            "title": "Expand Cities",
+            "default": false
+          },
+          "tracks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tracks",
+            "description": "Which of the loaded mission's tracks to score. Defaults to all of them. `GET /v1/capabilities` reports the permitted values, which are not an enum here because they come from a mission pack read at startup."
+          },
+          "tunables": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Tunables",
+            "description": "Per-session configuration overrides, nested as in config.yaml. Settable sections: triage, sensitivity, correlation, windows, tipping, budget. Anything else is a 422 naming the field — a setting that was accepted and ignored is worse than one that was refused."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SessionIn",
+        "description": "Initialisation. The key locations are what lodging queries anchor on.\n\nGive either `cities` inline or `input_set` — exactly one. The response\nechoes the resolved geography either way, so an operator can see what they\ncreated rather than trust that a file still says what they remember."
+      },
+      "SessionOut": {
+        "properties": {
+          "session_id": {
+            "type": "integer",
+            "title": "Session Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "ACTIVE"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "default": ""
+          },
+          "expand_cities": {
+            "type": "boolean",
+            "title": "Expand Cities",
+            "default": false
+          },
+          "tracks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tracks",
+            "description": "Tracks defined by the loaded mission. Not an enum in this schema because the permitted values come from a mission pack read at startup; `GET /v1/capabilities` reports the live set as `mission.tracks`."
+          },
+          "cities": {
+            "items": {
+              "$ref": "#/components/schemas/CityOut"
+            },
+            "type": "array",
+            "title": "Cities"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "tunables": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Tunables",
+            "description": "Per-session configuration overrides in force, normalised. Empty means every stage runs on the server's own configuration."
+          },
+          "config_hash": {
+            "type": "string",
+            "title": "Config Hash",
+            "description": "Fingerprint of the effective analytical configuration. Matches `config_hash` on every receipt this session's iterations produce.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "title": "SessionOut"
+      },
+      "StageOut": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "wrote": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Wrote"
+          },
+          "decisions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Decisions"
+          },
+          "agents": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Agents"
+          },
+          "api_calls": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Api Calls"
+          },
+          "log": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Log"
+          },
+          "correlations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Correlations",
+            "description": "What CORRELATING concluded. Each entry carries `evidence_url` — the drill-down works for a correlation with no alert, which is the case that had no route at all before 8.7(b)."
+          },
+          "skips": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Skips",
+            "description": "Why collected posts did not reach the model (8.9). STALE is a decision — older than `triage.max_post_age_hours`. The PAYLOAD_* and ITEM_* reasons are defects: evidence that was collected and paid for and then could not be read, and a PAYLOAD_* reason costs every post in that response. Empty for every other stage."
+          }
+        },
+        "type": "object",
+        "required": [
+          "stage",
+          "status"
+        ],
+        "title": "StageOut"
+      },
+      "StagesOut": {
+        "properties": {
+          "iteration_id": {
+            "type": "integer",
+            "title": "Iteration Id"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "next_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Stage"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageOut"
+            },
+            "type": "array",
+            "title": "Stages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "iteration_id",
+          "stage"
+        ],
+        "title": "StagesOut"
+      },
+      "StepIn": {
+        "properties": {
+          "expect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expect"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "StepIn"
+      },
+      "StepOut": {
+        "properties": {
+          "iteration_id": {
+            "type": "integer",
+            "title": "Iteration Id"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "next_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Stage"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "report": {
+            "$ref": "#/components/schemas/StageOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "iteration_id",
+          "stage",
+          "ok",
+          "report"
+        ],
+        "title": "StepOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "BearerToken": {
+        "type": "http",
+        "description": "Static bearer token, read by the server from the environment variable named in `api.token_env` (default `SURGE_API_TOKEN`). Required by every operation except `GET /v1/healthz`, which is anonymous for liveness but requires the token when called with `?deep=true`.",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

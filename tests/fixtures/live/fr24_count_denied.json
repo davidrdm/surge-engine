@@ -1,0 +1,3 @@
+{
+ "detail": "FR24 /api/live/flight-positions/count -> HTTP 403: Forbidden (check the credential, and whether a sandbox key is being used against a production endpoint)"
+}

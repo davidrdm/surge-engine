@@ -1,0 +1,48 @@
+{
+  "name": "19-healthz",
+  "note": "Unauthenticated liveness. ?deep=true probes the four vendors and does require the token.",
+  "request": {
+    "method": "GET",
+    "path": "/v1/healthz",
+    "headers": {},
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "status": "ok",
+      "database": "ok",
+      "schema_version": 14,
+      "dry_run": true,
+      "debug_endpoints": true,
+      "active_sessions": 3,
+      "running_iterations": [],
+      "epoch_id": 1,
+      "interrupted_iterations": [],
+      "budget": {
+        "APIDIRECT": {
+          "used": 0.0,
+          "limit": 3000.0,
+          "remaining": 3000.0
+        },
+        "FR24": {
+          "used": 0.0,
+          "limit": 30000.0,
+          "remaining": 30000.0
+        },
+        "PRICELINE": {
+          "used": 0.0,
+          "limit": 100000.0,
+          "remaining": 100000.0
+        },
+        "STAYING": {
+          "used": 0.0,
+          "limit": 18412.0,
+          "remaining": 18412.0
+        }
+      },
+      "connectors": null,
+      "retention": {}
+    }
+  }
+}

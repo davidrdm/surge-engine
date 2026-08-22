@@ -1,0 +1,56 @@
+{
+  "name": "11-step",
+  "note": "One stage, with the report of what it did. `expect` is a guard, not a selector.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/iterations/2/step",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "expect": "SEEDING"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "iteration_id": 2,
+      "stage": "SEEDING",
+      "ok": true,
+      "next_stage": "COLLECTING_SOCIAL",
+      "outcome": null,
+      "report": {
+        "stage": "SEEDING",
+        "status": "COMPLETE",
+        "started_at": "2026-07-27T16:00:00+00:00",
+        "finished_at": "2026-07-27T16:00:00+00:00",
+        "error_message": null,
+        "wrote": {
+          "query_queue": 18,
+          "queue_decisions": 18
+        },
+        "decisions": {
+          "ENQUEUED": 18
+        },
+        "agents": [],
+        "api_calls": {},
+        "log": [
+          {
+            "agent": "IterationOrchestrator",
+            "level": "INFO",
+            "message": "Iteration 2 created",
+            "logged_at": "2026-07-27T16:00:00+00:00"
+          },
+          {
+            "agent": "QueueAgent",
+            "level": "INFO",
+            "message": "Seeded 18 social queries, adopted 0 follow-ons",
+            "logged_at": "2026-07-27T16:00:00+00:00"
+          }
+        ],
+        "correlations": [],
+        "skips": {}
+      }
+    }
+  }
+}

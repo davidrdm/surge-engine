@@ -1,0 +1,84 @@
+{
+  "name": "08b-correlations",
+  "note": "Everything the iteration scored, alerting or not. `alert_decision` says what ALERTING concluded about each and why, recorded by the agent that decided rather than left for a reader to infer from `score` and a config value.",
+  "request": {
+    "method": "GET",
+    "path": "/v1/iterations/1/correlations",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "iteration_id": 1,
+      "counts": {
+        "ALERTED": 2
+      },
+      "correlations": [
+        {
+          "correlation_id": 1,
+          "city": "Phoenix, AZ",
+          "track": "AIRSHOW",
+          "confidence": {
+            "score": 0.6237,
+            "band": "MEDIUM"
+          },
+          "distinct_types": 2,
+          "data_completeness": 0.75,
+          "band_capped": false,
+          "failed_sources": [
+            "LODGING:/search"
+          ],
+          "failed_families": [
+            "LODGING"
+          ],
+          "rule_trace": "score 0.62 >= 0.5, 2 families, with social or verified-category flight; flight_AMBIGUOUS NOT baselined — too few prior samples, so the absolute count of 2 stands; flight_J NOT baselined — too few prior samples, so the absolute count of 1 stands; evidence aged on a 72-hour window (half-life 21.7h, 0.1 at the edge)",
+          "contributions": {
+            "car": 0.0,
+            "flight_AMBIGUOUS": 0.117205,
+            "flight_J": 0.08811,
+            "flight_M": 0.204701,
+            "social": 0.21371
+          },
+          "alert_decision": "ALERTED",
+          "alert_decision_reason": "score 0.624 at or above correlation.alert_min_score (0.2) with band MEDIUM — score 0.62 >= 0.5, 2 families, with social or verified-category flight; flight_AMBIGUOUS NOT baselined — too few prior samples, so the absolute count of 2 stands; flight_J NOT baselined — too few prior samples, so the absolute count of 1 stands; evidence aged on a 72-hour window (half-life 21.7h, 0.1 at the edge)",
+          "alerted": true,
+          "computed_at": "2026-07-27T12:00:00+00:00",
+          "evidence_url": "/v1/correlations/1/evidence"
+        },
+        {
+          "correlation_id": 2,
+          "city": "Phoenix, AZ",
+          "track": "CONCERT_TOUR",
+          "confidence": {
+            "score": 0.2738,
+            "band": "LOW"
+          },
+          "distinct_types": 1,
+          "data_completeness": 0.75,
+          "band_capped": false,
+          "failed_sources": [
+            "LODGING:/search"
+          ],
+          "failed_families": [
+            "LODGING"
+          ],
+          "rule_trace": "score 0.27 >= 0.2, 3 independent reports across 1 signal family; flight_AMBIGUOUS NOT baselined — too few prior samples, so the absolute count of 2 stands; flight_J NOT baselined — too few prior samples, so the absolute count of 1 stands; evidence aged on a 72-hour window (half-life 21.7h, 0.1 at the edge)",
+          "contributions": {
+            "car": 0.0,
+            "flight_AMBIGUOUS": 0.156273,
+            "flight_J": 0.11748,
+            "flight_M": 0.0
+          },
+          "alert_decision": "ALERTED",
+          "alert_decision_reason": "score 0.274 at or above correlation.alert_min_score (0.2) with band LOW — score 0.27 >= 0.2, 3 independent reports across 1 signal family; flight_AMBIGUOUS NOT baselined — too few prior samples, so the absolute count of 2 stands; flight_J NOT baselined — too few prior samples, so the absolute count of 1 stands; evidence aged on a 72-hour window (half-life 21.7h, 0.1 at the edge)",
+          "alerted": true,
+          "computed_at": "2026-07-27T12:00:00+00:00",
+          "evidence_url": "/v1/correlations/2/evidence"
+        }
+      ]
+    }
+  }
+}

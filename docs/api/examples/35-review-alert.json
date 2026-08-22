@@ -1,0 +1,26 @@
+{
+  "name": "35-review-alert",
+  "note": "A human gate on DISTRIBUTION only. The score, band and evidence are untouched — an alert withheld for being unhelpful must stay in the record at its computed confidence.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/alerts/1/review",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "review_state": "RELEASED",
+      "reviewed_by": "duty analyst",
+      "note": "corroborated against the organiser's published schedule"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "alert_id": 1,
+      "review_state": "RELEASED",
+      "reviewed_at": "2026-07-27T21:00:00+00:00",
+      "reviewed_by": "duty analyst",
+      "note": "corroborated against the organiser's published schedule"
+    }
+  }
+}

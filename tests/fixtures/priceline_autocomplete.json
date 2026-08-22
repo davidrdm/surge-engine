@@ -1,0 +1,35 @@
+{
+ "success": true,
+ "data": {
+  "locationData": [
+   {
+    "itemName": "Phoenix Sky Harbor Intl Airport",
+    "id": "3000016152",
+    "cityID": "3000016152",
+    "type": "AIRPORT",
+    "lat": 33.4353,
+    "lon": -112.0078,
+    "proximity": 0,
+    "cityName": "Phoenix",
+    "stateCode": "AZ",
+    "provinceName": "Arizona",
+    "score": 99,
+    "country": "US",
+    "address": "3400 E Sky Harbor Blvd",
+    "airportCode": "PHX"
+   },
+   {
+    "itemName": "Phoenix",
+    "id": "3000016150",
+    "cityID": "3000016150",
+    "type": "CITY",
+    "lat": 33.4484,
+    "lon": -112.074,
+    "cityName": "Phoenix",
+    "stateCode": "AZ",
+    "country": "US",
+    "score": 95
+   }
+  ]
+ }
+}

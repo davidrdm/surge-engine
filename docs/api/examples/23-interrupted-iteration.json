@@ -1,0 +1,65 @@
+{
+  "name": "23-interrupted-iteration",
+  "note": "status INTERRUPTED is what lets a watching client stop. Before it, an interrupted run returned running:false, outcome:null forever.",
+  "request": {
+    "method": "GET",
+    "path": "/v1/iterations/3",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "iteration_id": 3,
+      "session_id": 4,
+      "seq": 1,
+      "stage": "COLLECTING_TIPPED",
+      "outcome": null,
+      "running": false,
+      "anchor_at": "2026-07-27T20:00:00+00:00",
+      "started_at": "2026-07-27T20:00:00+00:00",
+      "finished_at": null,
+      "next_stage": "COLLECTING_TIPPED",
+      "counts": {
+        "queries_enqueued": 11,
+        "queries_pending": 2,
+        "queries_executed": 9,
+        "queries_failed": 0,
+        "queries_skipped": 0,
+        "raw_results": 9,
+        "signals": 4,
+        "triage_decisions": 4,
+        "correlations": 0,
+        "alerts": 0
+      },
+      "triage_states": {
+        "ACCEPTED": 4
+      },
+      "budget": {
+        "APIDIRECT": {
+          "used_this_iteration": 0.0
+        },
+        "FR24": {
+          "used_this_iteration": 0.0
+        },
+        "PRICELINE": {
+          "used_this_iteration": 0.0
+        },
+        "STAYING": {
+          "used_this_iteration": 0.0
+        }
+      },
+      "status": "INTERRUPTED",
+      "interrupted_at": "2026-07-27T20:00:00+00:00",
+      "interrupted_stage": "COLLECTING_TIPPED",
+      "retry_of_iteration_id": null,
+      "resumable": true,
+      "degradations": [
+        "interrupted during COLLECTING_TIPPED; 2 agent run(s) closed, 0 banked query(ies) settled"
+      ],
+      "error_message": null
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "01f-tunable-cap-cannot-be-raised",
+  "note": "A session may lower a spending cap and never raise one. The budget being protected is the operator's.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "cities": [
+        {
+          "name": "Phoenix",
+          "state": "AZ",
+          "key_locations": [
+            {
+              "name": "Riverside Fairground",
+              "address": "510 S 3rd Ave, Phoenix, AZ",
+              "location_type": "FAIRGROUND"
+            }
+          ]
+        }
+      ],
+      "tunables": {
+        "budget": {
+          "per_iteration_cap": {
+            "FR24": 99999.0
+          }
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "detail": "budget.per_iteration_cap.FR24: 99999 exceeds the server's 4000. A session may lower a spending cap, never raise one — the budget being protected is the operator's."
+    }
+  }
+}

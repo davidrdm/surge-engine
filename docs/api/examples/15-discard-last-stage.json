@@ -1,0 +1,31 @@
+{
+  "name": "15-discard-last-stage",
+  "note": "Discards ALERTING. Only the last stage, one at a time; repeated calls walk backwards.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/iterations/2/discard-last-stage",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "iteration_id": 2,
+      "stage": "ALERTING",
+      "deleted": {
+        "alerts": 2
+      },
+      "queries_reset": 0,
+      "units_spent": {
+        "APIDIRECT": 0.0,
+        "FR24": 0.0,
+        "PRICELINE": 0.0
+      },
+      "not_reverted": [],
+      "degradations_retracted": 0,
+      "next_stage": "ALERTING"
+    }
+  }
+}

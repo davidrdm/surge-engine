@@ -1,0 +1,19 @@
+{
+ "plan": {
+  "code": "starter",
+  "name": "Starter",
+  "status": "active"
+ },
+ "key": {
+  "env": "live"
+ },
+ "credits": {
+  "balance": 1374,
+  "available": 1374,
+  "held": 0,
+  "expiringSoon": 74
+ },
+ "rateLimit": {
+  "requestsPerMinute": 60
+ }
+}

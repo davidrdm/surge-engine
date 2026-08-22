@@ -1,0 +1,18 @@
+{
+  "name": "25-resume-needs-confirm",
+  "note": "Refused: resuming would collect again at the vendors and nothing already spent is reclaimed.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/iterations/3/resume",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {}
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "detail": "Resuming would collect 2 query(ies) again at the vendors. 0 unit(s) already spent are not reclaimed. Pass confirm_respend=true to proceed."
+    }
+  }
+}

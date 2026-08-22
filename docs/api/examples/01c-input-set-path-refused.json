@@ -1,0 +1,20 @@
+{
+  "name": "01c-input-set-path-refused",
+  "note": "Authenticated is not the same as trusted with the filesystem. A path here would be a file-disclosure primitive whatever the intent behind it.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "input_set": "../../etc/passwd"
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "detail": "'../../etc/passwd' is not a valid input set name. Give the NAME of a file in the input directory — 'example' is the one shipped — not a path."
+    }
+  }
+}

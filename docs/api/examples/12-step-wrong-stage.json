@@ -1,0 +1,20 @@
+{
+  "name": "12-step-wrong-stage",
+  "note": "The guard refusing: a client that lost track of the pointer must not run the wrong stage and spend money doing it.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/iterations/2/step",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "expect": "ALERTING"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "detail": "Iteration 2 is at COLLECTING_SOCIAL, not ALERTING."
+    }
+  }
+}

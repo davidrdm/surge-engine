@@ -1,0 +1,90 @@
+# What else would produce this evidence.
+#
+# Every alert carries the competing explanations for the pattern that produced
+# it, keyed by which families actually contributed. This is not hedging: a
+# booking-market drop is genuinely the weakest single-family evidence this
+# system collects, because the market moves for dozens of ordinary reasons and
+# the vendor cannot say which one.
+#
+# `when` says which correlations the explanation applies to — ALWAYS (the
+# default), SOLE_FAMILY, or FLIGHT_CATEGORY_UNCONFIRMED. The engine
+# evaluates it; a mission may not invent conditions the engine cannot check.
+#
+# `weakened_by` is what in the correlation itself argues against the
+# alternative. Leave it out when nothing does. An unanswered alternative is
+# more useful to a reader than a manufactured rebuttal. The engine appends
+# its own note when more than one family contributed, so do not restate it.
+
+LODGING:
+- code: CONVENTION
+  statement: 'A convention, conference or trade show booked the same room inventory.
+
+    '
+  weakened_by: Baselines are weekday-aligned at +7 and +14 days, so ordinary
+    weekly demand is already differenced out.
+- code: HOLIDAY_TRAVEL
+  statement: 'A holiday or school break raised ordinary travel demand.
+
+    '
+  weakened_by: Baselines are weekday-aligned at +7 and +14 days, so ordinary
+    weekly demand is already differenced out.
+- code: SUPPLY_SIDE
+  statement: 'Inventory left the market for reasons unrelated to demand — a
+    property delisted, a block held back, a refurbishment.
+
+    '
+CAR:
+- code: FLEET_REPOSITIONING
+  statement: 'The rental fleet was moved for operational reasons rather than
+    rented out — a seasonal rebalance or a counter closure.
+
+    '
+- code: HOLIDAY_TRAVEL
+  statement: 'A holiday or school break raised ordinary vehicle demand.
+
+    '
+  weakened_by: Baselines are weekday-aligned at +7 and +14 days, so ordinary
+    weekly demand is already differenced out.
+FLIGHT:
+- code: ROUTINE_AVIATION
+  statement: 'Ordinary business or general aviation traffic for this airport,
+    at a level the baseline has not yet learned.
+
+    '
+- code: UNRELATED_EVENT
+  statement: 'Aircraft arriving for a different gathering in the same metro
+    area.
+
+    '
+- code: CIVILIAN_AIRCRAFT
+  statement: 'The flight evidence came from live positions, which carry no category
+    field, so the aircraft may be civilian.
+
+    '
+  weakened_by: 'An AMBIGUOUS record is never scored at the highest category
+    weight; it is present as presence, not as classification.
+
+    '
+  when: FLIGHT_CATEGORY_UNCONFIRMED
+SOCIAL:
+- code: RUMOUR_AMPLIFICATION
+  statement: 'Coordinated or organic amplification of a claim that describes
+    no actual movement.
+
+    '
+  weakened_by: 'Corroboration counts distinct publishers AND distinct claims,
+    so one story reprinted by several outlets is one claim, not several.
+
+    '
+  when: SOLE_FAMILY
+- code: ANTICIPATORY_COMMENTARY
+  statement: 'Commentary about a possible or past event rather than reporting
+    of one now.
+
+    '
+  when: SOLE_FAMILY
+- code: SPECULATIVE_ANNOUNCEMENT
+  statement: 'An event announced but not yet scheduled, ticketed or permitted.
+
+    '
+  when: SOLE_FAMILY

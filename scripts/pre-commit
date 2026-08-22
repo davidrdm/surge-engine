@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Refuse to commit credential-shaped content.
+#
+# Install:
+#   ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+#
+# .gitignore only protects files you never stage. This catches the other cases:
+# a key pasted into a source file, a config.yaml added with -f, a fixture
+# captured from a live response with the Authorization header still attached.
+#
+# Bypass with --no-verify only if you are certain; that is the whole point of
+# the hook being noisy.
+
+set -uo pipefail
+
+fail=0
+
+note() { echo "pre-commit: $*" >&2; }
+
+# 1. Files that must never be committed, regardless of content.
+#    .env.example is explicitly permitted — it is the committed template and
+#    contains no values.
+forbidden=$(git diff --cached --name-only --diff-filter=ACM \
+    | grep -Ex '(config\.yaml|\.env|\.env\..*|.*\.db|.*\.sqlite3?)' \
+    | grep -vx '\.env\.example' || true)
+if [ -n "$forbidden" ]; then
+    note "these files must not be committed:"
+    printf '  %s\n' $forbidden >&2
+    note "config.yaml holds credentials; commit config.example.yaml instead."
+    fail=1
+fi
+
+# 2. Credential-shaped strings in staged content.
+#
+# Matches an assignment of a long opaque value to a key/token/secret name, plus
+# a few vendor-specific prefixes. Deliberately does not print the matched value
+# — only the file and line — so running the hook never reveals the secret.
+patterns=(
+    '(api[_-]?key|apikey|secret|token|password|bearer)["'"'"']?\s*[:=]\s*["'"'"']?[A-Za-z0-9._\-]{20,}'
+    'sk-[A-Za-z0-9]{20,}'          # OpenAI-style
+    'AIza[A-Za-z0-9_\-]{30,}'      # Google
+    'stay_(live|test)_[A-Za-z0-9]{16,}'
+    'ghp_[A-Za-z0-9]{30,}'         # GitHub PAT
+    'github_pat_[A-Za-z0-9_]{30,}'
+)
+
+for pattern in "${patterns[@]}"; do
+    # git diff omits binary content by default. Only added lines are examined,
+    # and only the count is reported — printing the match would defeat the point.
+    hits=$(git diff --cached -U0 --no-color \
+        | grep -Ei "^\+.*${pattern}" || true)
+    if [ -n "$hits" ]; then
+        count=$(printf '%s\n' "$hits" | wc -l | tr -d ' ')
+        note "found ${count} line(s) matching a credential pattern."
+        note "pattern: ${pattern}"
+        note "review with: git diff --cached"
+        fail=1
+    fi
+done
+
+# 3. The specific mistake made in the sibling iw repo: a value that looks like a
+#    key placed in a field that is supposed to hold an environment variable NAME.
+env_misuse=$(git diff --cached -U0 --no-color \
+    | grep -nE '^\+.*_(key_)?env:\s*["'"'"']?[^"'"'"'#]*[a-z][^"'"'"'#]*[A-Z]' || true)
+if [ -n "$env_misuse" ]; then
+    note "a *_env field appears to hold a value rather than a variable NAME."
+    note "these fields take e.g. FR24_API_KEY, never the key itself."
+    fail=1
+fi
+
+if [ $fail -ne 0 ]; then
+    note "commit blocked. Use --no-verify to override deliberately."
+    exit 1
+fi
+exit 0

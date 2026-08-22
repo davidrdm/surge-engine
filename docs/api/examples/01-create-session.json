@@ -1,0 +1,65 @@
+{
+  "name": "01-create-session",
+  "note": "Airports and pickup points resolve here, so a mapping gap is a warning at init rather than a skipped query hours later.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "label": "AZ display season",
+      "expand_cities": true,
+      "tracks": [
+        "AIRSHOW",
+        "CONCERT_TOUR"
+      ],
+      "cities": [
+        {
+          "name": "Phoenix",
+          "state": "AZ",
+          "key_locations": [
+            {
+              "name": "Riverside Fairground",
+              "address": "510 S 3rd Ave, Phoenix, AZ",
+              "location_type": "FAIRGROUND"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "session_id": 1,
+      "label": "AZ display season",
+      "status": "ACTIVE",
+      "created_at": "2026-07-27T12:00:00+00:00",
+      "expand_cities": true,
+      "tracks": [
+        "AIRSHOW",
+        "CONCERT_TOUR"
+      ],
+      "cities": [
+        {
+          "city_id": 1,
+          "name": "Phoenix",
+          "state": "AZ",
+          "is_seed": true,
+          "admitted_by": "USER",
+          "key_locations": [
+            "Riverside Fairground"
+          ],
+          "airports": [
+            "PHX"
+          ],
+          "pickup_location": "PHX"
+        }
+      ],
+      "warnings": [],
+      "tunables": {},
+      "config_hash": "a1ff6aeb4be4b32adf5912a18a3121da"
+    }
+  }
+}

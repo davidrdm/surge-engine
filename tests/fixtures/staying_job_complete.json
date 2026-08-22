@@ -1,0 +1,4 @@
+{"status":"completed","data":[
+ {"platform":"booking","listingId":"bk-88001","dates":[
+   {"date":"2026-07-28","available":false,"minNights":1,"checkIn":true,"bookable":false}]}
+]}

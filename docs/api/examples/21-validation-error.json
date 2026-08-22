@@ -1,0 +1,34 @@
+{
+  "name": "21-validation-error",
+  "note": "Pydantic's own 422 shape, which is richer than the application's {\"detail\": \"...\"} and distinct from it.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "cities": []
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, A session needs at least one city: pass `cities`, or `input_set` naming a file in the input directory.",
+          "input": {
+            "cities": []
+          },
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  }
+}

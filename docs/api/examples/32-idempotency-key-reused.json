@@ -1,0 +1,21 @@
+{
+  "name": "32-idempotency-key-reused",
+  "note": "Same key, different body: refused. Replaying the old response would let the caller believe it started a run with its new parameters.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions/5/iterations",
+    "headers": {
+      "Authorization": "Bearer example-token",
+      "Idempotency-Key": "contract-demo-key-01"
+    },
+    "body": {
+      "mode": "auto"
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "detail": "Idempotency-Key 'contract-demo-key-01' was already used for a different request. Use a new key, or repeat the original request exactly."
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "name": "01b-session-from-input-set",
+  "note": "The geography from `inputs/<name>.yaml` instead of inline. `input_set` is a NAME resolved inside `inputs.dir`, never a path. All-or-nothing: a city the geo table cannot place is refused by name with a 422, because a session quietly missing a jurisdiction would report a true absence of evidence about a place nobody looked at. The response echoes what actually resolved.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "label": "loaded from a file",
+      "input_set": "example",
+      "tracks": [
+        "AIRSHOW"
+      ]
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "session_id": 2,
+      "label": "loaded from a file",
+      "status": "ACTIVE",
+      "created_at": "2026-07-27T12:00:00+00:00",
+      "expand_cities": false,
+      "tracks": [
+        "AIRSHOW"
+      ],
+      "cities": [
+        {
+          "city_id": 2,
+          "name": "Phoenix",
+          "state": "AZ",
+          "is_seed": true,
+          "admitted_by": "USER",
+          "key_locations": [
+            "Riverside Fairground",
+            "Lakeside Arena"
+          ],
+          "airports": [
+            "PHX"
+          ],
+          "pickup_location": "PHX"
+        },
+        {
+          "city_id": 3,
+          "name": "Chicago",
+          "state": "IL",
+          "is_seed": true,
+          "admitted_by": "USER",
+          "key_locations": [
+            "Northside Exhibition Center"
+          ],
+          "airports": [
+            "ORD",
+            "MDW"
+          ],
+          "pickup_location": "ORD"
+        }
+      ],
+      "warnings": [
+        "loaded 2 city/cities from inputs/example.yaml"
+      ],
+      "tunables": {},
+      "config_hash": "a1ff6aeb4be4b32adf5912a18a3121da"
+    }
+  }
+}

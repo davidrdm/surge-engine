@@ -1,0 +1,17 @@
+{"data": [
+ {"fr24_id":"39bf1c58","flight":"RCH285","callsign":"RCH285","lat":34.1021,"lon":-113.4412,
+  "track":118,"alt":31000,"gspeed":452,"vspeed":-64,"squawk":"1425",
+  "timestamp":"2026-07-27T11:12:03Z","source":"ADSB","hex":"AE1234","type":"C17",
+  "reg":"04-4128","painted_as":"RCH","operating_as":"RCH","orig_iata":"DOV",
+  "orig_icao":"KDOV","dest_iata":"PHX","dest_icao":"KPHX","eta":"2026-07-27T11:52:00Z"},
+ {"fr24_id":"39bf2201","flight":"RCH412","callsign":"RCH412","lat":33.9910,"lon":-112.8801,
+  "track":121,"alt":27000,"gspeed":441,"vspeed":-800,"squawk":"1426",
+  "timestamp":"2026-07-27T11:14:55Z","source":"ADSB","hex":"AE5678","type":"C130",
+  "reg":"08-3175","painted_as":"RCH","operating_as":"RCH","orig_iata":"BIF",
+  "orig_icao":"KBIF","dest_iata":"PHX","dest_icao":"KPHX","eta":"2026-07-27T11:41:00Z"},
+ {"fr24_id":"39bf3390","flight":"N600XJ","callsign":"N600XJ","lat":33.7,"lon":-112.2,
+  "track":140,"alt":18000,"gspeed":390,"vspeed":-1200,"squawk":"4471",
+  "timestamp":"2026-07-27T11:20:11Z","source":"ADSB","hex":"A7C001","type":"GLF6",
+  "reg":"N600XJ","painted_as":"","operating_as":"","orig_iata":"LAS",
+  "orig_icao":"KLAS","dest_iata":"PHX","dest_icao":"KPHX","eta":"2026-07-27T11:58:00Z"}
+]}

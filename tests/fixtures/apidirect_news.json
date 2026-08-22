@@ -1,0 +1,15 @@
+{"articles": [
+ {"title":"Second demonstration team added to Phoenix flying display",
+  "url":"https://apnews.com/article/phoenix-airshow-2026",
+  "snippet":"Organisers confirmed a second demonstration team will fly at the Phoenix airshow this week.",
+  "photo_url":"https://apnews.com/img/1.jpg","thumbnail_url":"https://apnews.com/img/1t.jpg",
+  "published_datetime_utc":"2026-07-27T09:05:00Z","authors":["Jane Doe","AP Staff"],
+  "source_url":"https://apnews.com","source_name":"Associated Press",
+  "source_favicon_url":"https://apnews.com/favicon.ico","domain":"apnews.com"},
+ {"title":"Record attendance expected for airshow weekend","url":"https://reuters.com/world/us/phoenix-airshow-2026",
+  "snippet":"Organisers expect record attendance at the Riverside Fairground airshow this weekend.",
+  "photo_url":"","thumbnail_url":"",
+  "published_datetime_utc":"2026-07-27T08:30:00Z","authors":["John Roe"],
+  "source_url":"https://reuters.com","source_name":"Reuters",
+  "source_favicon_url":"","domain":"reuters.com"}
+], "limit":50, "count":2}

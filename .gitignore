@@ -1,0 +1,61 @@
+# --- Secrets: never commit these ---------------------------------------------
+# config.yaml holds environment variable NAMES, never values. It is ignored
+# anyway so a local copy cannot leak. Commit config.example.yaml instead.
+config.yaml
+.env
+.env.*
+# The committed templates carry variable names only, never values.
+!.env.example
+!config.example.yaml
+*.pem
+*.key
+
+# --- Databases ---------------------------------------------------------------
+# Collected FlightRadar24 data is subject to a 30-day retention limit; keep
+# working databases out of version control entirely.
+*.db
+*.db-wal
+*.db-shm
+# Snapshots taken by a schema upgrade before it rewrites tables.
+# Real data, and the downgrade path — keep them, never commit them.
+*.db.pre-v*.bak
+*.sqlite
+*.sqlite3
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# --- Tooling -----------------------------------------------------------------
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Runtime output ----------------------------------------------------------
+logs/
+products/
+exports/
+
+# --- Editors / OS ------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+
+# Live SOCIAL captures. `tests/test_live_smoke.py` writes what the endpoints
+# returned, and for the social ones that is arbitrary third-party text chosen by
+# whatever the loaded mission searched for — real articles about whatever the
+# world was discussing that day. The flight, lodging and car captures are
+# structured vendor payloads and are kept; these are not, and nothing reads
+# them. A run that wants to keep one files it with the pack whose lexicon
+# produced it.
+tests/fixtures/live/apidirect_*.json

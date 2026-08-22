@@ -1,0 +1,28 @@
+[
+ {
+  "listing_id": "760297400684081692",
+  "platform": "airbnb",
+  "nights_offered": 3,
+  "nights_available": 3,
+  "dates": [
+   {
+    "date": "2026-08-24",
+    "available": true,
+    "bookable": true,
+    "min_nights": 2
+   },
+   {
+    "date": "2026-08-25",
+    "available": true,
+    "bookable": true,
+    "min_nights": 2
+   },
+   {
+    "date": "2026-08-26",
+    "available": true,
+    "bookable": true,
+    "min_nights": 2
+   }
+  ]
+ }
+]

@@ -1,0 +1,23 @@
+{
+ "provider": "FR24",
+ "healthy": true,
+ "detail": "ok",
+ "usage": {
+  "data": [
+   {
+    "endpoint": "airports/{code}",
+    "metadata": "code",
+    "request_count": 5,
+    "results": 5,
+    "credits": 5
+   },
+   {
+    "endpoint": "airlines/{code}",
+    "metadata": "icao",
+    "request_count": 1,
+    "results": 1,
+    "credits": 1
+   }
+  ]
+ }
+}

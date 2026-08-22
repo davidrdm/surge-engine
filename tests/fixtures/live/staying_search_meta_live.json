@@ -1,0 +1,21 @@
+{
+ "requestId": "req_01M0N34W0Y8VNBY27KZPK6JX0X",
+ "platforms": [
+  "airbnb"
+ ],
+ "cached": false,
+ "partial": false,
+ "creditsCharged": 10,
+ "currency": "USD",
+ "pagination": null,
+ "platformResults": [
+  {
+   "count": 5,
+   "cached": false,
+   "status": "ok",
+   "platform": "airbnb",
+   "creditsCharged": 10
+  }
+ ],
+ "warnings": []
+}

@@ -1,0 +1,37 @@
+{
+  "name": "30-idempotent-trigger",
+  "note": "This endpoint spends money, so a lost response must be safe to retry. The key opts in.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions/5/iterations",
+    "headers": {
+      "Authorization": "Bearer example-token",
+      "Idempotency-Key": "contract-demo-key-01"
+    },
+    "body": {
+      "mode": "manual"
+    }
+  },
+  "response": {
+    "status": 202,
+    "headers": {
+      "Idempotency-Key": "contract-demo-key-01"
+    },
+    "body": {
+      "iteration_id": 4,
+      "session_id": 5,
+      "seq": 0,
+      "status": "PENDING",
+      "stage": "SEEDING",
+      "poll_url": "/v1/iterations/4",
+      "next_stage": "SEEDING",
+      "retry_of_iteration_id": null,
+      "budget_plan": {
+        "APIDIRECT": 60.0,
+        "FR24": 3000.0,
+        "PRICELINE": 200.0,
+        "STAYING": 400.0
+      }
+    }
+  }
+}

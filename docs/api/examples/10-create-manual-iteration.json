@@ -1,0 +1,33 @@
+{
+  "name": "10-create-manual-iteration",
+  "note": "mode=manual creates the iteration without running it, for stepping. Note the four-hour gap from the first iteration: the cooldown guard is keyed on the query hash across all iterations.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions/1/iterations",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "mode": "manual"
+    }
+  },
+  "response": {
+    "status": 202,
+    "body": {
+      "iteration_id": 2,
+      "session_id": 1,
+      "seq": 0,
+      "status": "PENDING",
+      "stage": "SEEDING",
+      "poll_url": "/v1/iterations/2",
+      "next_stage": "SEEDING",
+      "retry_of_iteration_id": null,
+      "budget_plan": {
+        "APIDIRECT": 60.0,
+        "FR24": 3000.0,
+        "PRICELINE": 200.0,
+        "STAYING": 400.0
+      }
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "name": "01d-session-with-tunables",
+  "note": "Per-session overrides, nested as in config.yaml. The response echoes them and returns `config_hash` — the same value every receipt this session produces carries, so a client can confirm after the fact that a judgement was made under the settings it asked for.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "label": "narrower window, tighter cap",
+      "cities": [
+        {
+          "name": "Phoenix",
+          "state": "AZ",
+          "key_locations": [
+            {
+              "name": "Riverside Fairground",
+              "address": "510 S 3rd Ave, Phoenix, AZ",
+              "location_type": "FAIRGROUND"
+            }
+          ]
+        }
+      ],
+      "tracks": [
+        "AIRSHOW"
+      ],
+      "tunables": {
+        "correlation": {
+          "window_hours": 48
+        },
+        "triage": {
+          "require_nexus": true
+        },
+        "budget": {
+          "per_iteration_cap": {
+            "FR24": 500.0
+          }
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "session_id": 3,
+      "label": "narrower window, tighter cap",
+      "status": "ACTIVE",
+      "created_at": "2026-07-27T12:00:00+00:00",
+      "expand_cities": false,
+      "tracks": [
+        "AIRSHOW"
+      ],
+      "cities": [
+        {
+          "city_id": 4,
+          "name": "Phoenix",
+          "state": "AZ",
+          "is_seed": true,
+          "admitted_by": "USER",
+          "key_locations": [
+            "Riverside Fairground"
+          ],
+          "airports": [
+            "PHX"
+          ],
+          "pickup_location": "PHX"
+        }
+      ],
+      "warnings": [],
+      "tunables": {
+        "budget": {
+          "per_iteration_cap": {
+            "FR24": 500.0
+          }
+        },
+        "correlation": {
+          "window_hours": 48
+        },
+        "triage": {
+          "require_nexus": true
+        }
+      },
+      "config_hash": "55371c17126fb7b12dee1c9ffd9618bf"
+    }
+  }
+}

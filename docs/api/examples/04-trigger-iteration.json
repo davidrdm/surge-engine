@@ -1,0 +1,31 @@
+{
+  "name": "04-trigger-iteration",
+  "note": "Without ?wait=true this returns 202 immediately and the run continues on a worker; poll_url is the same either way.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions/1/iterations?wait=true",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "iteration_id": 1,
+      "session_id": 1,
+      "seq": 0,
+      "status": "FINISHED",
+      "stage": "COMPLETE",
+      "poll_url": "/v1/iterations/1",
+      "next_stage": null,
+      "retry_of_iteration_id": null,
+      "budget_plan": {
+        "APIDIRECT": 60.0,
+        "FR24": 3000.0,
+        "PRICELINE": 200.0,
+        "STAYING": 400.0
+      }
+    }
+  }
+}

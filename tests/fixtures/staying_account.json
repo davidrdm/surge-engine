@@ -1,0 +1,4 @@
+{"data":{"plan":{"code":"growth","name":"Growth","status":"active"},
+ "key":{"environment":"test"},
+ "credits":{"balance":20000,"available":18412,"expiringSoon":0},
+ "rateLimit":{"perMinute":300}}}

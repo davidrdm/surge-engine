@@ -1,0 +1,135 @@
+{
+  "name": "36-alerts-released-only",
+  "note": "What a client distributing onward should ask for. The unfiltered listing deliberately returns every alert, because an operator cannot review what the API hides.",
+  "request": {
+    "method": "GET",
+    "path": "/v1/sessions/1/alerts?review_state=RELEASED",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "body": [
+      {
+        "review_state": "RELEASED",
+        "alert_id": 1,
+        "iteration_id": 1,
+        "city": "Phoenix, AZ",
+        "track": "AIRSHOW",
+        "confidence": {
+          "score": 0.6237,
+          "band": "MEDIUM"
+        },
+        "summary": "Multiple sources report crews and equipment staging at the Riverside Fairground in Phoenix, and short-term-rental availability within 15 km has fallen sharply against the two-week baseline.",
+        "caveat": "Collection incomplete: lodging unavailable this iteration (coverage 75%). Absence of those indicators is not evidence of their absence.",
+        "earliest_eta": "2026-07-27T11:41:00Z",
+        "created_at": "2026-07-27T12:00:00+00:00",
+        "evidence_url": "/v1/alerts/1/evidence",
+        "social_posts": [
+          {
+            "url": "https://x.com/azreporter/status/1001",
+            "author": "azreporter",
+            "platform": "Twitter (X)",
+            "source_domain": "x.com",
+            "observed_at": "2026-07-27T10:12:00+00:00",
+            "snippet": "Demonstration team jets on the flightline at the Riverside Fairground in Phoenix ahead of this weekend's flying display.",
+            "salience": 0.9,
+            "activity_type": "static display",
+            "imminence_hours": 6.0
+          },
+          {
+            "url": "https://x.com/localwatch/status/1002",
+            "author": "localwatch",
+            "platform": "Twitter (X)",
+            "source_domain": "x.com",
+            "observed_at": "2026-07-27T09:40:00+00:00",
+            "snippet": "Ground crew and static display aircraft arriving at the Riverside Fairground since dawn; practice day is tomorrow.",
+            "salience": 0.9,
+            "activity_type": "static display",
+            "imminence_hours": 6.0
+          },
+          {
+            "url": "https://apnews.com/article/phoenix-airshow-2026",
+            "author": "Jane Doe",
+            "platform": "news",
+            "source_domain": "apnews.com",
+            "observed_at": "2026-07-27T09:05:00+00:00",
+            "snippet": "Organisers confirmed a second demonstration team will fly at the Phoenix airshow this week.",
+            "salience": 0.9,
+            "activity_type": "static display",
+            "imminence_hours": 6.0
+          },
+          {
+            "url": "https://reuters.com/world/us/phoenix-airshow-2026",
+            "author": "John Roe",
+            "platform": "news",
+            "source_domain": "reuters.com",
+            "observed_at": "2026-07-27T08:30:00+00:00",
+            "snippet": "Organisers expect record attendance at the Riverside Fairground airshow this weekend.",
+            "salience": 0.9,
+            "activity_type": "static display",
+            "imminence_hours": 6.0
+          }
+        ],
+        "flights": [
+          {
+            "callsign": "RCH285",
+            "registration": "04-4128",
+            "aircraft_type": "C17",
+            "origin_iata": "DOV",
+            "dest_iata": "PHX",
+            "operating_as": "RCH",
+            "category": "M",
+            "category_confidence": "CONFIRMED",
+            "status": "airborne_inbound",
+            "eta": "2026-07-27T11:52:00Z",
+            "fr24_id": "39bf1c58"
+          },
+          {
+            "callsign": "RCH412",
+            "registration": "08-3175",
+            "aircraft_type": "C130",
+            "origin_iata": "BIF",
+            "dest_iata": "PHX",
+            "operating_as": "RCH",
+            "category": "AMBIGUOUS",
+            "category_confidence": "AMBIGUOUS",
+            "status": "airborne_inbound",
+            "eta": "2026-07-27T11:41:00Z",
+            "fr24_id": "39bf2201"
+          },
+          {
+            "callsign": "N600XJ",
+            "registration": "N600XJ",
+            "aircraft_type": "GLF6",
+            "origin_iata": "LAS",
+            "dest_iata": "PHX",
+            "operating_as": "",
+            "category": "J",
+            "category_confidence": "CONFIRMED",
+            "status": "airborne_inbound",
+            "eta": "2026-07-27T11:58:00Z",
+            "fr24_id": "39bf3390"
+          },
+          {
+            "callsign": "UNK001",
+            "registration": "N123AB",
+            "aircraft_type": "B350",
+            "origin_iata": "TUS",
+            "dest_iata": "PHX",
+            "operating_as": "",
+            "category": "AMBIGUOUS",
+            "category_confidence": "AMBIGUOUS",
+            "status": "landed",
+            "eta": null,
+            "fr24_id": "39bf9999"
+          }
+        ],
+        "lodging": [],
+        "rental_cars": []
+      }
+    ]
+  }
+}

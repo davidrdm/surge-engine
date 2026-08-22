@@ -1,0 +1,54 @@
+# Surge I&W — jurisdictions and their key locations
+#
+# One entry per city or county. Comment a whole entry out to exclude it from a
+# session; nothing here is collected against until a session is created from it.
+#
+#   python run.py session create --from example --dry-run
+#   python run.py session create --from example --label "trial run"
+#
+# Format
+# ------
+# The key is the jurisdiction, with an optional trailing US state:
+#
+#   Chicago, IL:
+#     - Lakeside Arena                          # just a name
+#     - name: Riverside Fairground              # or a mapping, for the type
+#       location_type: FAIRGROUND
+#
+# `location_type` comes from the LOADED MISSION, not from this file's format —
+# `GET /v1/capabilities` reports the permitted values, and an unknown one is
+# refused by name at load time. The values below are the reference mission's.
+# It is optional and documentary; matching is on the name.
+#
+# Key locations are what LODGING queries anchor on: convergence shows up as
+# scarcity near the venue, not city-wide. A city with none still gets flight
+# and rental-car coverage; the lodging family will simply be absent, and the
+# loader says so.
+#
+# Every city is resolved against the geo table when this file is loaded. One
+# that cannot be resolved is REFUSED BY NAME rather than skipped — a city
+# dropped from a session produces no query, no refusal and no warning, so its
+# absence would be indistinguishable from having looked and found nothing.
+#
+# This file is an EXAMPLE, shipped so the engine has something to load with no
+# real mission present. A deployment keeps its own alongside its mission pack.
+
+Phoenix, AZ:
+  - name: Riverside Fairground
+    location_type: FAIRGROUND
+  - name: Lakeside Arena
+    location_type: STADIUM
+
+Chicago, IL:
+  - name: Northside Exhibition Center
+    location_type: VENUE
+
+# Atlanta, GA:
+#   - name: Southside Showground
+#     location_type: FAIRGROUND
+#
+# Denver, CO:
+#   - name: Front Range Airfield
+#     location_type: AIRFIELD
+#   - name: Mountain View Arena
+#     location_type: STADIUM

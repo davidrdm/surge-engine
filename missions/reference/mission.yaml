@@ -1,0 +1,118 @@
+# The reference mission.
+#
+# This pack exists so the engine can be tested and its API contract generated
+# without any real mission present. It is deliberately synthetic: a benign
+# crowd-convergence problem — telling, a day or two ahead, that a large number
+# of people are about to arrive in a city for a scheduled event.
+#
+# It is also deliberately UNLIKE the shape the engine grew up with. Three
+# tracks rather than two, so that any surviving `len(tracks) == 2` assumption
+# fails loudly rather than passing by luck. Between them the three tracks use
+# every FR24 category the engine scores (M, J, T, H), so no scoring path is
+# left uncovered when a real mission pack lives outside this repository.
+#
+# Nothing here is calibrated. The thresholds are plausible and internally
+# consistent, which is all a fixture needs to be; they are not measurements,
+# and no operational judgement should be drawn from a run against this pack.
+
+id: reference
+version: "1"
+
+description: >
+  Synthetic crowd-convergence mission used by the test suite and by contract
+  generation. Detects a large scheduled gathering forming in a city from the
+  same four families a real mission would use: chatter and local news, inbound
+  charter and display aviation, lodging scarcity near the venue, and rental
+  fleet drawdown at the airport.
+
+files:
+  - lexicon.yaml
+  - scoring.yaml
+  - geography.yaml
+  - facilities.yaml
+  - hypotheses.yaml
+  - prompts/triage.md
+  - prompts/relevance-strict.md
+  - prompts/relevance-broad.md
+  - prompts/alert.md
+
+# Who this mission is looking for. Any number of tracks is legal; each is
+# scored independently against the same collected evidence.
+tracks:
+  - CONCERT_TOUR
+  - SPORTING_EVENT
+  - AIRSHOW
+
+# What kind of place a key location can be. OTHER is conventional rather than
+# required — a mission that wants every location classified may simply omit it.
+location_types:
+  - VENUE
+  - STADIUM
+  - AIRFIELD
+  - FAIRGROUND
+  - OTHER
+
+# Analytic configuration owned by the mission. These layer under config.yaml,
+# so an operator can still override any of them locally — and the engine logs
+# by name every key where that happens, because a calibrated value replaced
+# without a record is the failure this project keeps finding.
+thresholds:
+  windows:
+    # A gathering forms over a couple of days, not a couple of hours.
+    near_term_hours: 72
+    baseline_days: [7, 14]
+
+  triage:
+    # This mission's nexus is the event itself: crowd movement with no event
+    # attached is ordinary travel. See prompts/relevance-strict.md.
+    require_nexus: true
+    min_salience: 0.2
+    max_post_age_hours: 168
+    batch_size: 10
+
+  sensitivity:
+    confirm_min_salience: 0.35
+    tip_min_salience: 0.5
+    tip_require_timestamp: true
+    tip_max_age_hours: 72
+    max_future_skew_hours: 48
+
+  correlation:
+    window_hours: 72
+    radius_km: 40.0
+    lodging_drop_full_scale: 30.0
+    car_drop_full_scale: 40.0
+    price_escalation_full_scale: 60.0
+    flight_full_scale: 4.0
+    social_domains_full_scale: 3.0
+    single_source_quality: 0.4
+    on_airport_weight: 1.5
+    band_high_min_score: 0.75
+    band_high_min_types: 3
+    band_medium_min_score: 0.45
+    band_medium_min_types: 2
+    band_low_min_score: 0.15
+    band_low_min_reports: 2
+    alert_min_score: 0.15
+    decay_edge_weight: 0.1
+    flight_excess_full_scale: 100.0
+    flight_baseline_min_samples: 3
+    flight_baseline_window_days: 30
+
+# The prompt slots the engine asks for by name. `version` is stamped on every
+# receipt, so a pack that changes a prompt must change its version too —
+# otherwise two different judgements become indistinguishable in the audit
+# trail, which is the one thing receipts exist to prevent.
+prompts:
+  triage:
+    file: prompts/triage.md
+    version: reference-triage/1
+  relevance_strict:
+    file: prompts/relevance-strict.md
+    version: reference-relevance/1-strict
+  relevance_broad:
+    file: prompts/relevance-broad.md
+    version: reference-relevance/1-broad
+  alert:
+    file: prompts/alert.md
+    version: reference-alert/1

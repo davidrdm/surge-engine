@@ -1,0 +1,16 @@
+{
+  "name": "02-unauthenticated",
+  "note": "Every route except /v1/healthz needs the bearer token.",
+  "request": {
+    "method": "GET",
+    "path": "/v1/sessions/1",
+    "headers": {},
+    "body": null
+  },
+  "response": {
+    "status": 401,
+    "body": {
+      "detail": "Bearer token required."
+    }
+  }
+}

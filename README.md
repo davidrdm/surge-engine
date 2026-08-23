@@ -1,5 +1,5 @@
 # Surge I&W
-A tipping-and-queuing engine for tactical indications and warning
+A tipping-and-cueing engine for tactical indications and warning
 
 *(c) David Blum, 2026, dmblum@gmail.com*
 

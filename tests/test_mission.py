@@ -140,6 +140,7 @@ class TestTheDigest:
         (pack / "tests").mkdir(exist_ok=True)
         (pack / "tests" / "test_trial_pack.py").write_text(
             "def test_it_still_loads():\n    assert True\n")
+        (pack / "README.md").write_text("# A pack introducing itself\n")
 
         loaded = mission.load(pack)
         assert loaded.identifier == "reference"
@@ -474,8 +475,10 @@ class TestCapabilitiesReportsTheMission:
             # Read from the loader's own set. A second copy of it here went
             # stale the moment `tests/` was added to the pack, and the failure
             # read as "the digest is wrong" rather than "this test is".
-            if p.is_file() and not (set(p.relative_to(REFERENCE).parts)
-                                    & mission.CARRIED_ALONGSIDE)
+            if p.is_file()
+            and not (set(p.relative_to(REFERENCE).parts)
+                     & mission.CARRIED_ALONGSIDE)
+            and p.name not in mission.CARRIED_FILES
         )
         expected = hashlib.sha256(
             "\n".join(f"{n}:{d}" for n, d in pairs).encode()).hexdigest()

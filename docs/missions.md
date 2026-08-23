@@ -52,6 +52,7 @@ missions/<name>/
   prompts/relevance-strict.md
   prompts/relevance-broad.md
   prompts/alert.md
+  README.md                  optional — what this mission is, in prose
   docs/                      optional, never read
   inputs/                    optional, never read by the loader
   tests/                     optional — the pack's own checks, collected by
@@ -433,8 +434,11 @@ are safe. The model never sees the score and cannot change it.
 loader refuses a declared file that is missing *and* an undeclared file that is
 present, then hashes every member into one digest. A file that is neither loaded
 nor hashed would be a change nothing records — exactly what the digest exists to
-prevent. `docs/`, `inputs/` and `tests/` are exempt: the loader does not read
-them. `tests/` is exempt for one more reason worth stating — a test that could
+prevent. `README.md`, `docs/`, `inputs/` and `tests/` are exempt: the loader
+does not read them. A pack should be able to introduce itself to whoever opens
+the directory, and the alternative to exempting the README is worse both ways —
+declared, a typo fix in the prose moves the digest and every receipt appears to
+name a different definition; undeclared, the pack will not load at all. `tests/` is exempt for one more reason worth stating — a test that could
 move the digest would make every receipt appear to name a different definition
 the moment somebody added a case.
 
@@ -546,7 +550,7 @@ The loader refuses by name. This is the whole list.
 | `is listed twice` | A duplicated track or location type |
 | `<value> cannot be a track` | `UNKNOWN` is reserved: it is the unattributed marker |
 | `declares <f>, which does not exist` | A declared member is missing |
-| `holds file(s) no manifest declares` | An undeclared file is present outside `docs/`, `inputs/` and `tests/` |
+| `holds file(s) no manifest declares` | An undeclared file is present outside `README.md`, `docs/`, `inputs/` and `tests/` |
 | `is declared twice` | A member listed twice in `files` |
 | `escapes the pack directory` | A member path outside the pack |
 | `no entry for track(s)` | A lexicon, weight table or flight filter missing a track |

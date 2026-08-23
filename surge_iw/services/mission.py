@@ -94,6 +94,13 @@ PROMPTS: tuple[str, ...] = (
 #: name a different definition the moment somebody added a case.
 CARRIED_ALONGSIDE: frozenset[str] = frozenset({"docs", "inputs", "tests"})
 
+#: Files, rather than directories, carried on the same terms. A pack should be
+#: able to introduce itself to whoever opens the directory, and the alternative
+#: to exempting one is worse both ways: declared, a typo fix in the prose moves
+#: the digest and every receipt appears to name a different definition;
+#: undeclared, the pack will not load at all.
+CARRIED_FILES: frozenset[str] = frozenset({"README.md"})
+
 #: Every key each pack file may carry. Named rather than inline because they
 #: are the pack FORMAT, and `docs/missions.md` is pinned against them: a key
 #: added to the loader and not to the guide is a format change an author would
@@ -313,6 +320,7 @@ def _declared_members(root: Path, declared: Iterable[str]) -> list[str]:
         for p in root.rglob("*")
         if p.is_file()
         and not set(p.relative_to(root).parts) & CARRIED_ALONGSIDE
+        and p.name not in CARRIED_FILES
     }
     stray = sorted(present - set(members))
     if stray:
@@ -321,7 +329,8 @@ def _declared_members(root: Path, declared: Iterable[str]) -> list[str]:
             f"Add them to `files:` or remove them — the pack is hashed as a "
             f"whole, and a file that is neither loaded nor hashed is a change "
             f"nothing would record. Exempt: "
-            f"{'/, '.join(sorted(CARRIED_ALONGSIDE))}/.")
+            f"{'/, '.join(sorted(CARRIED_ALONGSIDE))}/ and "
+            f"{', '.join(sorted(CARRIED_FILES))}.")
     return members
 
 

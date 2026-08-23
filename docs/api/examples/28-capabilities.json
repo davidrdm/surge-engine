@@ -16,7 +16,7 @@
         "configured": true,
         "id": "reference",
         "version": "1",
-        "digest": "47a1b2d382acc825d542e817073ab07e9e1902a1c4834612381aa77b41169b72",
+        "digest": "3ad99e22c0068dee5523d38d39f959d2750162951766f07708233f17a52ab484",
         "description": "Synthetic crowd-convergence mission used by the test suite and by contract generation. Detects a large scheduled gathering forming in a city from the same four families a real mission would use: chatter and local news, inbound charter and display aviation, lodging scarcity near the venue, and rental fleet drawdown at the airport.",
         "tracks": [
           "CONCERT_TOUR",

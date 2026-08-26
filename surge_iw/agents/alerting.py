@@ -225,6 +225,11 @@ class AlertAgent(LLMAgent):
             if kind == "SOCIAL":
                 brief["social_posts"].append({
                     "source": row["source_domain"] or row["platform"],
+                    # Which mission stream found it — context for the writer,
+                    # never an instruction; the prompt's own rules still
+                    # forbid characterising anything.
+                    "stream": (row["stream"]
+                               if "stream" in row.keys() else None) or "",
                     "when": row["observed_at"],
                     "text": (row["snippet"] or "")[:300],
                     "activity": row["activity_type"],

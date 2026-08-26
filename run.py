@@ -260,6 +260,75 @@ def cmd_alerts(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _named_or_path(source: str, config: dict) -> Path:
+    """A NAME resolved inside `inputs.dir`, or a path — same rule as inputs.
+
+    The API accepts only a name (a path there would be a file-disclosure
+    primitive), but an operator at a shell already has the filesystem.
+    """
+    from surge_iw.services.inputs import input_path
+    return Path(source) if ("/" in source or Path(source).is_file()) \
+        else input_path(source, config)
+
+
+def cmd_session(args: argparse.Namespace) -> int:
+    if args.session_command == "add-calendar":
+        return cmd_session_add_calendar(args)
+    return cmd_session_create(args)
+
+
+def cmd_session_add_calendar(args: argparse.Namespace) -> int:
+    """Append calendar events to an existing session, between iterations.
+
+    Refused while the session has an unfinished iteration, for the same
+    reason the API's append is: the triage context is fixed per iteration at
+    its start, and events landing mid-run would make two batches of one run
+    see different calendars. The check here is on the iterations table, so an
+    interrupted-but-unreconciled run also refuses — run `recover` first;
+    conservative, and honest about which side of the line an unclean stop
+    sits on.
+    """
+    from surge_iw.services import calendar as calendar_service
+    from surge_iw.services.inputs import InputError
+
+    db, config = _db(args)
+    session_id = int(args.session)
+    if db.get_session(session_id) is None:
+        print(f"error: no session {session_id}", file=sys.stderr)
+        db.close()
+        return 2
+    open_iteration = db.one(
+        "SELECT iteration_id FROM iterations WHERE session_id = ? "
+        "AND finished_at IS NULL AND interrupted_at IS NULL",
+        (session_id,))
+    if open_iteration is not None:
+        print(f"error: iteration {open_iteration['iteration_id']} is "
+              f"unfinished (running, or stopped uncleanly and not yet "
+              f"reconciled). Append calendar events between iterations; if "
+              f"the run is dead, `python run.py recover` first.",
+              file=sys.stderr)
+        db.close()
+        return 2
+    try:
+        loaded = calendar_service.load(_named_or_path(args.source, config),
+                                       mission=db.mission)
+    except InputError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        db.close()
+        return 2
+    inserted, dupes = db.insert_calendar_events(
+        session_id, loaded.events, source_name=loaded.path.name)
+    for warning in loaded.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+    for warning in dupes:
+        print(f"warning: {warning}", file=sys.stderr)
+    total = len(db.calendar_events(session_id))
+    print(f"{inserted} event(s) appended from {loaded.path.name}; "
+          f"session {session_id} now holds {total}.")
+    db.close()
+    return 0
+
+
 def cmd_session_create(args: argparse.Namespace) -> int:
     """Create a session from an input file (8.7c).
 
@@ -268,6 +337,7 @@ def cmd_session_create(args: argparse.Namespace) -> int:
     but an operator at a shell already has the filesystem, so refusing one here
     would be ceremony rather than a control.
     """
+    from surge_iw.services import calendar as calendar_service
     from surge_iw.services import geo
     from surge_iw.services.inputs import InputError, input_path, load
 
@@ -277,6 +347,13 @@ def cmd_session_create(args: argparse.Namespace) -> int:
         path = Path(source) if ("/" in source or Path(source).is_file()) \
             else input_path(source, config)
         loaded = load(path, config=config, mission=db.mission)
+        # Validated BEFORE anything is written, alongside the cities: a
+        # session half-created because its calendar was malformed would
+        # leave the operator guessing which parts took.
+        loaded_calendar = (
+            calendar_service.load(_named_or_path(args.calendar, config),
+                                  mission=db.mission)
+            if args.calendar else None)
     except InputError as exc:
         print(f"error: {exc}", file=sys.stderr)
         db.close()
@@ -293,6 +370,11 @@ def cmd_session_create(args: argparse.Namespace) -> int:
     for label in loaded.without_locations:
         print(f"\n  warning: {label} has no key locations; the LODGING family "
               f"will be absent for it", file=sys.stderr)
+    if loaded_calendar is not None:
+        print(f"\nCalendar : {loaded_calendar.path} "
+              f"({len(loaded_calendar.events)} event(s))")
+        for warning in loaded_calendar.warnings:
+            print(f"  warning: {warning}", file=sys.stderr)
 
     if args.dry_run:
         print("\n--dry-run: nothing written.")
@@ -318,6 +400,14 @@ def cmd_session_create(args: argparse.Namespace) -> int:
         if not geo.city_to_airports(city.canonical, limit=limit):
             print(f"warning: {city.label} has no airport mapping; flight "
                   f"queries will be SKIPPED_NO_MAPPING", file=sys.stderr)
+
+    if loaded_calendar is not None:
+        inserted, dupes = db.insert_calendar_events(
+            session_id, loaded_calendar.events,
+            source_name=loaded_calendar.path.name)
+        print(f"\n{inserted} calendar event(s) loaded.")
+        for warning in dupes:
+            print(f"  warning: {warning}", file=sys.stderr)
 
     print(f"\nSession {session_id} created.")
     print(f"  python run.py --config {args.config} iterate {session_id}")
@@ -646,8 +736,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Permit admitting cities the input file did not name, when two "
              "independent sources corroborate them.")
     create.add_argument(
+        "--calendar", default=None, metavar="NAME|PATH",
+        help="Calendar of scheduled events (context only, never scoring): "
+             "an inputs name or a path. Appendable later with "
+             "`session add-calendar`.")
+    create.add_argument(
         "--dry-run", action="store_true",
         help="Print the resolved geography and write nothing.")
+    add_calendar = session_sub.add_parser(
+        "add-calendar",
+        help="Append calendar events to a session, between iterations.")
+    add_calendar.add_argument("session", type=int)
+    add_calendar.add_argument(
+        "--from", dest="source", required=True, metavar="NAME|PATH",
+        help="Calendar file: an inputs name or a path. Events already on "
+             "the session become warnings, so re-loading a grown file is "
+             "the normal way to append.")
 
     iterate = sub.add_parser("iterate", help="Run one iteration.")
     iterate.add_argument("session", type=int)
@@ -699,7 +803,7 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = {
     "init-db": cmd_init_db,
     "serve": cmd_serve,
-    "session": cmd_session_create,     # one subcommand today: `session create`
+    "session": cmd_session,
     "retry-triage": cmd_retry_triage,
     "iterate": cmd_iterate,
     "alerts": cmd_alerts,

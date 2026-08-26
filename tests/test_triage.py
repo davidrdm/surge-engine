@@ -82,7 +82,12 @@ def _bind_to_item_ids(payload, prompt):
 
     start = prompt.find("[")
     try:
-        sent = json.loads(prompt[start:]) if start >= 0 else []
+        # raw_decode, not loads: the items array may be followed by more
+        # prompt (the operator-calendar context block), and a parser that
+        # demands the array be the last byte would silently unbind every
+        # judgement the moment a session has a calendar.
+        sent = (json.JSONDecoder().raw_decode(prompt, start)[0]
+                if start >= 0 else [])
     except ValueError:
         sent = []
     by_url = {item.get("url"): item.get("item_id")
@@ -505,17 +510,24 @@ class TestMalformedModelOutput:
 
 
 class TestOneDecisionPerPost:
-    def test_a_post_naming_two_cities_gets_exactly_one_decision(
+    def test_a_post_naming_two_cities_gets_one_decision_and_two_signals(
         self, db, config, session, iteration, social_query
     ):
-        """The decision is about the POST. Recording it once per city inflated
-        every per-post count, including the coverage figure that now caps the
-        band — found by the live matrix reporting 19 rows for 16 posts.
+        """The decision is about the POST; the signals are about the PLACES.
 
-        Only one SIGNAL is written either way: `idx_sig_dedup` keys on
-        (iteration, type, url) without a city, so the second city's row is
-        refused by the index. That is pre-existing and arguably right — one
-        post is one piece of evidence — but the refusal is currently silent.
+        Recording the decision once per city inflated every per-post count,
+        including the coverage figure that caps the band — found by the live
+        matrix reporting 19 rows for 16 posts. So: one decision.
+
+        But one signal per city, because a post announcing shows in two
+        cities is evidence about each of them, and correlation scores each
+        city over its own rows — the two can never meet in one number. Until
+        v16 `idx_sig_dedup` omitted the city, so the second city's row was
+        refused by the index and WHICH city kept the evidence was decided by
+        the order the model happened to list them in. A live run found it:
+        a tour announcement naming Phoenix and Chicago became evidence for
+        Phoenix alone, and Chicago — the city that actually alerted — lost a
+        report with no queue decision, no skip row and no log line.
         """
         db.insert_city(session, "Phoenix", canonical="phoenix")
         db.insert_city(session, "Tucson", canonical="tucson")
@@ -526,7 +538,40 @@ class TestOneDecisionPerPost:
 
         assert db.scalar("SELECT COUNT(*) FROM triage_decisions") == 1
         assert db.triage_state_counts(iteration) == {"ACCEPTED": 1}
+        signals = db.signals_by_type(iteration, "SOCIAL")
+        assert len(signals) == 2
+        assert {s["url"] for s in signals} == {"https://x.com/1"}
+        assert len({s["city_id"] for s in signals}) == 2, (
+            "one signal per city, not two rows for one city")
+
+    def test_a_genuine_duplicate_signal_is_refused_out_loud(
+        self, db, config, session, iteration, social_query
+    ):
+        """Same city, same post: the index refuses the second row, and that
+        refusal reaches the log. It returned None in silence before, which is
+        how the missing-city bug survived a live run undetected."""
+        city = db.insert_city(session, "Phoenix", canonical="phoenix")
+        store_posts(db, iteration, [post("https://x.com/1")], social_query)
+        agent = TriageAgent(db, config, FakeLLM([decision("https://x.com/1")]))
+        agent.run(iteration)
+        first = db.signals_by_type(iteration, "SOCIAL")
+        assert len(first) == 1
+
+        from surge_iw.agents.triage_schema import TriageItem
+        item = TriageItem.model_validate({
+            "item_id": "i1", "relevant": True, "track": "AIRSHOW",
+            "cities": ["Phoenix"], "locations": [], "salience": 0.9,
+            "rationale": "again"})
+        again = agent._write_signal(
+            iteration, city,
+            {"url": "https://x.com/1", "raw_id": first[0]["raw_id"],
+             "stream": None, "observed_at": first[0]["observed_at"]},
+            item)
+        assert again is None
         assert len(db.signals_by_type(iteration, "SOCIAL")) == 1
+        assert any("duplicates one already recorded" in row["message"]
+                   for row in db.all(
+                       "SELECT message FROM agent_log WHERE level='WARNING'"))
 
     def test_the_decision_points_at_a_signal_it_produced(
         self, db, config, session, iteration, social_query

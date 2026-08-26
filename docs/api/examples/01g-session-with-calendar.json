@@ -1,6 +1,6 @@
 {
-  "name": "01-create-session",
-  "note": "Airports and pickup points resolve here, so a mapping gap is a warning at init rather than a skipped query hours later.",
+  "name": "01g-session-with-calendar",
+  "note": "`calendar_set` names a calendar of scheduled events in the same `inputs.dir` — context, never input: triage shows the events to the model as background and correlations record the ones overlapping their window, but no score or band ever moves. Same NAME-not-path rule and the same all-or-nothing loading as `input_set`.",
   "request": {
     "method": "POST",
     "path": "/v1/sessions",
@@ -8,12 +8,7 @@
       "Authorization": "Bearer <SURGE_API_TOKEN>"
     },
     "body": {
-      "label": "AZ display season",
-      "expand_cities": true,
-      "tracks": [
-        "AIRSHOW",
-        "CONCERT_TOUR"
-      ],
+      "label": "with a calendar of scheduled events",
       "cities": [
         {
           "name": "Phoenix",
@@ -26,24 +21,27 @@
             }
           ]
         }
-      ]
+      ],
+      "tracks": [
+        "AIRSHOW"
+      ],
+      "calendar_set": "example-calendar"
     }
   },
   "response": {
     "status": 201,
     "body": {
-      "session_id": 1,
-      "label": "AZ display season",
+      "session_id": 4,
+      "label": "with a calendar of scheduled events",
       "status": "ACTIVE",
       "created_at": "2026-07-27T12:00:00+00:00",
-      "expand_cities": true,
+      "expand_cities": false,
       "tracks": [
-        "AIRSHOW",
-        "CONCERT_TOUR"
+        "AIRSHOW"
       ],
       "cities": [
         {
-          "city_id": 1,
+          "city_id": 5,
           "name": "Phoenix",
           "state": "AZ",
           "is_seed": true,
@@ -57,8 +55,10 @@
           "pickup_location": "PHX"
         }
       ],
-      "calendar_events": 0,
-      "warnings": [],
+      "calendar_events": 4,
+      "warnings": [
+        "loaded 4 calendar event(s) from inputs/example-calendar.yaml"
+      ],
       "tunables": {},
       "config_hash": "a1ff6aeb4be4b32adf5912a18a3121da"
     }

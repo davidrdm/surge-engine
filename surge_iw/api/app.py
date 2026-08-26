@@ -21,6 +21,7 @@ from typing import Any, Callable, Mapping
 
 from fastapi import FastAPI
 
+from .. import __version__
 from ..agents.orchestrator import IterationOrchestrator
 from ..config import load_with_mission, mission_overrides
 from ..db.database import SurgeDB
@@ -202,7 +203,12 @@ def create_app(
     app = FastAPI(
         title="Surge I&W",
         description=DESCRIPTION,
-        version="0.6.0",
+        # The package version, not a separate number. Three version strings
+        # shipped in 0.1 — package 0.1.0, this literal at 0.6.0, and
+        # SCHEMA_VERSION — and only the last is deliberate: a database format
+        # is not a release. A client reading `info.version` and a receipt
+        # reading `package_version` must be reading the same release.
+        version=__version__,
         lifespan=lifespan,
     )
 

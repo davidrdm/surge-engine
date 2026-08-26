@@ -33,12 +33,25 @@ def signal(db, iteration, city, **fields):
 
 
 def four_signal_city(db, iteration, city, location=None):
-    """A city with all four families present and strong."""
+    """A city with all four families present and strong.
+
+    The social rows carry the reference pack's `chatter` stream: since pack
+    version 2 the mission scores its streams by name, and a streamless SOCIAL
+    row would be an unknown kind weighted at zero.
+    """
     for index, domain in enumerate(("a.com", "b.org", "c.net"), start=1):
         signal(db, iteration, city, signal_type="SOCIAL", track=AIRLIFT.name,
+               stream="chatter",
                observed_at=iso(ANCHOR - timedelta(hours=index)),
                url=f"https://{domain}/{index}", source_domain=domain,
                salience=0.95, snippet="Crews staging at the fairground",
+               quality=0.95)
+    for index, domain in enumerate(("d.news", "e.news", "f.news"), start=1):
+        signal(db, iteration, city, signal_type="SOCIAL", track=AIRLIFT.name,
+               stream="local_news",
+               observed_at=iso(ANCHOR - timedelta(hours=index)),
+               url=f"https://{domain}/{index}", source_domain=domain,
+               salience=0.95, snippet="Organisers confirm the load-in",
                quality=0.95)
     for index in range(3):
         signal(db, iteration, city, signal_type="FLIGHT",
@@ -80,9 +93,46 @@ class TestCorrelation:
             "SELECT * FROM correlations WHERE city_id = ? AND track = ?",
             (city, "AIRSHOW"))
         assert row["band"] == "HIGH"
-        assert row["distinct_types"] == 4
+        # Five: the four engine families plus the pack's promoted LOCAL_NEWS.
+        assert row["distinct_types"] == 5
         assert row["data_completeness"] == 1.0
         assert row["rule_trace"]
+
+    def test_the_score_records_the_tunables_it_was_computed_under(
+        self, db, config, session, iteration, scored
+    ):
+        """Correlation is the one judgement made without a model, so it writes
+        no receipt — and the tunables behind a score otherwise lived only in a
+        config file anyone may edit afterwards. Found live: re-scoring a
+        stored iteration produced different numbers and nothing on the row
+        could say whether the engine or the operator's config had moved."""
+        from surge_iw.services import receipts
+
+        city, _ = scored
+        row = db.one(
+            "SELECT * FROM correlations WHERE city_id = ? AND track = ?",
+            (city, "AIRSHOW"))
+        assert row["config_hash"] == receipts.config_fingerprint(config)
+
+    def test_a_changed_tunable_changes_the_recorded_hash(
+        self, db, config, session, iteration, scored
+    ):
+        """The point of recording it: a score computed under different
+        settings must be distinguishable from one computed under these."""
+        from surge_iw.agents.correlation import CorrelationAgent
+        from surge_iw.services import receipts
+
+        city, _ = scored
+        before = db.one(
+            "SELECT config_hash FROM correlations WHERE city_id = ? "
+            "AND track = ?", (city, "AIRSHOW"))["config_hash"]
+        config["correlation"]["car_drop_full_scale"] = 33.0
+        CorrelationAgent(db, config).run(iteration)
+        after = db.one(
+            "SELECT config_hash FROM correlations WHERE city_id = ? "
+            "AND track = ?", (city, "AIRSHOW"))["config_hash"]
+        assert after != before
+        assert after == receipts.config_fingerprint(config)
 
     def test_the_working_is_recorded(self, db, config, session, iteration, scored):
         """contributions_json is what makes a score arguable after the fact."""
@@ -93,7 +143,7 @@ class TestCorrelation:
             "SELECT * FROM correlations WHERE city_id = ? AND track = ?",
             (city, "AIRSHOW"))
         contributions = json.loads(row["contributions_json"])
-        assert set(contributions) >= {"social", "flight_M", "lodging", "car"}
+        assert set(contributions) >= {"chatter", "flight_M", "lodging", "car"}
         assert sum(contributions.values()) == pytest.approx(row["score"], abs=0.001)
 
     def test_every_contributing_signal_is_linked(self, db, config, session,
@@ -103,7 +153,7 @@ class TestCorrelation:
             "SELECT * FROM correlations WHERE city_id = ? AND track = ?",
             (city, "AIRSHOW"))
         linked = db.correlation_signals(correlation["correlation_id"])
-        assert len(linked) == 8
+        assert len(linked) == 11    # 3 chatter + 3 local_news + 3 flight + 1 + 1
         assert {row["signal_type"] for row in linked} == {
             "SOCIAL", "FLIGHT", "LODGING", "CAR"}
 

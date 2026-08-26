@@ -51,6 +51,37 @@ def _write(pack: Path, name: str, data) -> None:
     (pack / name).write_text(yaml.safe_dump(data, sort_keys=False))
 
 
+@pytest.fixture
+def lexicon_pack(pack: Path) -> Path:
+    """The copied pack rewritten to the v0.1 shape: one lexicon.yaml, no
+    streams. `_lexicon`'s rules are shared by both paths; the tests that
+    drive them through the classic file need a pack of the classic shape,
+    which the shipped pack stopped being at version 2."""
+    manifest = yaml.safe_load((pack / mission.MANIFEST).read_text())
+    streams = yaml.safe_load((pack / "streams.yaml").read_text())
+    merged: dict = {}
+    for entry in streams.values():
+        for track, groups in entry["lexicon"].items():
+            merged.setdefault(track, []).extend(groups)
+    _write(pack, "lexicon.yaml", merged)
+    (pack / "streams.yaml").unlink()
+    (pack / "prompts" / "local-news-strict.md").unlink()
+    manifest["files"] = [f for f in manifest["files"] if f not in
+                         ("streams.yaml", "prompts/local-news-strict.md")]
+    manifest["files"].append("lexicon.yaml")
+    scoring_data = yaml.safe_load((pack / "scoring.yaml").read_text())
+    for table in scoring_data["weights"].values():
+        table["social"] = round(table.pop("chatter")
+                                + table.pop("local_news"), 4)
+    _write(pack, "scoring.yaml", scoring_data)
+    hyp = yaml.safe_load((pack / "hypotheses.yaml").read_text())
+    hyp.pop("LOCAL_NEWS", None)
+    _write(pack, "hypotheses.yaml", hyp)
+    (pack / mission.MANIFEST).write_text(
+        yaml.safe_dump(manifest, sort_keys=False))
+    return pack
+
+
 # ---------------------------------------------------------------------------
 # The shipped pack
 # ---------------------------------------------------------------------------
@@ -93,7 +124,8 @@ class TestTheDigest:
         names = {name for name, _ in loaded.members}
         assert mission.MANIFEST in names
         assert "prompts/triage.md" in names
-        assert len(names) == 10
+        assert "streams.yaml" in names
+        assert len(names) == 11
 
     def test_editing_any_member_changes_it(self, pack: Path):
         before = mission.load(pack).digest
@@ -149,10 +181,10 @@ class TestTheDigest:
             "claims about the definition")
 
     def test_a_declared_file_that_is_missing_is_refused(self, pack: Path):
-        (pack / "lexicon.yaml").unlink()
+        (pack / "streams.yaml").unlink()
         with pytest.raises(MissionError) as exc:
             mission.load(pack)
-        assert "lexicon.yaml" in str(exc.value)
+        assert "streams.yaml" in str(exc.value)
 
     def test_a_member_outside_the_pack_is_refused(self, pack: Path):
         _edit_manifest(pack, lambda d: d["files"].append("../../etc/passwd"))
@@ -216,37 +248,144 @@ class TestTheManifest:
         assert "llm" in str(exc.value)
 
 
-class TestTheLexicon:
-    def test_a_track_the_mission_does_not_define_is_refused(self, pack: Path):
-        data = yaml.safe_load((pack / "lexicon.yaml").read_text())
-        data["CONCERT_TOURS"] = data.pop("CONCERT_TOUR")
-        _write(pack, "lexicon.yaml", data)
+class TestCollects:
+    """Which engine families a pack collects at all. A pack that scores only
+    chatter should not be made to buy flight, lodging and rental-car data to
+    ignore it — three vendors, three credentials and a per-iteration spend for
+    evidence no weight will ever read."""
+
+    def _set(self, pack: Path, value) -> None:
+        _edit_manifest(pack, lambda d: d.__setitem__("collects", value))
+
+    def _social_only(self, pack: Path) -> Path:
+        """Everything a pack must drop along with the paid families: their
+        weight rows, their flight filter, and their hypotheses. Each is a
+        statement about a family this pack no longer has, and the loader
+        refuses all three by name — which is the rule, not an inconvenience."""
+        data = yaml.safe_load((pack / "scoring.yaml").read_text())
+        for table in data["weights"].values():
+            for kind in ("flight_M", "flight_J", "lodging", "car"):
+                table.pop(kind)
+        data.pop("flight_categories")
+        _write(pack, "scoring.yaml", data)
+        hypotheses = yaml.safe_load((pack / "hypotheses.yaml").read_text())
+        for family in ("FLIGHT", "LODGING", "CAR"):
+            hypotheses.pop(family, None)
+        _write(pack, "hypotheses.yaml", hypotheses)
+        self._set(pack, ["SOCIAL"])
+        return pack
+
+    def test_omitting_it_collects_all_four(self, pack: Path):
+        """Every pack written before this key existed keeps its behaviour."""
+        loaded = mission.load(pack)
+        assert loaded.collects == mission.FAMILIES
+        assert loaded.families[:4] == mission.FAMILIES
+
+    def test_a_social_only_pack_drops_the_paid_kinds_and_families(
+        self, lexicon_pack: Path
+    ):
+        loaded = mission.load(self._social_only(lexicon_pack))
+        assert loaded.collects == ("SOCIAL",)
+        assert loaded.families == ("SOCIAL",)
+        assert loaded.scoring_kinds == ("social",)
+        # Not collected is not failed: the three families leave the
+        # completeness denominator rather than reading as permanent outages.
+        assert all(loaded.flight_categories[t] == () for t in loaded.tracks)
+
+    def test_a_paid_row_left_behind_is_refused_by_name(
+        self, lexicon_pack: Path
+    ):
+        """The declaration and the weight table must not disagree."""
+        self._set(lexicon_pack, ["SOCIAL"])
+        with pytest.raises(MissionError) as exc:
+            mission.load(lexicon_pack)
+        assert "flight_M" in str(exc.value)
+
+    def test_a_hypothesis_for_an_uncollected_family_is_refused(
+        self, lexicon_pack: Path
+    ):
+        """Competing explanations for evidence this pack can never have."""
+        self._set(lexicon_pack, ["SOCIAL"])
+        data = yaml.safe_load((lexicon_pack / "scoring.yaml").read_text())
+        for table in data["weights"].values():
+            for kind in ("flight_M", "flight_J", "lodging", "car"):
+                table.pop(kind)
+        data.pop("flight_categories")
+        _write(lexicon_pack, "scoring.yaml", data)
+        with pytest.raises(MissionError) as exc:
+            mission.load(lexicon_pack)
+        assert "unknown family/families" in str(exc.value)
+
+    @pytest.mark.parametrize("value,fragment", [
+        ([], "non-empty list"),
+        (["SOCIAL", "TRAINS"], "not an engine family"),
+        (["SOCIAL", "SOCIAL"], "twice"),
+        (["FLIGHT", "LODGING"], "must include SOCIAL"),
+        ("SOCIAL", "non-empty list"),
+    ])
+    def test_the_refusals_name_the_offender(self, pack: Path, value, fragment):
+        self._set(pack, value)
         with pytest.raises(MissionError) as exc:
             mission.load(pack)
+        assert fragment in str(exc.value), str(exc.value)
+
+    def test_a_promoted_stream_family_does_not_belong_here(self, pack: Path):
+        """Promoted families are collected THROUGH the social feed; naming one
+        here would be a second, disagreeing statement of where it comes from."""
+        self._set(pack, ["SOCIAL", "LOCAL_NEWS"])
+        with pytest.raises(MissionError) as exc:
+            mission.load(pack)
+        assert "streams.yaml" in str(exc.value)
+
+    def test_startup_says_which_families_are_off(self, lexicon_pack: Path):
+        """A pack that has stopped buying three vendors' data must say so out
+        loud: the absence is otherwise indistinguishable from an outage."""
+        described = "\n".join(
+            mission.load(self._social_only(lexicon_pack)).describe())
+        assert "NOT collecting FLIGHT, LODGING, CAR" in described
+        assert "never a coverage gap" in described
+
+    def test_collecting_all_four_says_nothing_at_startup(self, pack: Path):
+        """The warning has to stay rare enough to mean something."""
+        assert not [line for line in mission.load(pack).describe()
+                    if "collects:" in line]
+
+
+class TestTheLexicon:
+    def test_a_track_the_mission_does_not_define_is_refused(
+        self, lexicon_pack: Path
+    ):
+        data = yaml.safe_load((lexicon_pack / "lexicon.yaml").read_text())
+        data["CONCERT_TOURS"] = data.pop("CONCERT_TOUR")
+        _write(lexicon_pack, "lexicon.yaml", data)
+        with pytest.raises(MissionError) as exc:
+            mission.load(lexicon_pack)
         assert "CONCERT_TOURS" in str(exc.value)
 
-    def test_a_track_with_no_entry_is_refused(self, pack: Path):
+    def test_a_track_with_no_entry_is_refused(self, lexicon_pack: Path):
         """The failure this prevents: a misspelled track searches nothing, and
         the run reports a quiet city."""
-        data = yaml.safe_load((pack / "lexicon.yaml").read_text())
+        data = yaml.safe_load((lexicon_pack / "lexicon.yaml").read_text())
         data.pop("AIRSHOW")
-        _write(pack, "lexicon.yaml", data)
+        _write(lexicon_pack, "lexicon.yaml", data)
         with pytest.raises(MissionError) as exc:
-            mission.load(pack)
+            mission.load(lexicon_pack)
         assert "AIRSHOW" in str(exc.value)
 
-    def test_an_empty_term_group_is_refused(self, pack: Path):
-        _write(pack, "lexicon.yaml",
+    def test_an_empty_term_group_is_refused(self, lexicon_pack: Path):
+        _write(lexicon_pack, "lexicon.yaml",
                {"CONCERT_TOUR": [[]], "SPORTING_EVENT": [["a"]],
                 "AIRSHOW": [["b"]]})
-        with pytest.raises(MissionError):
-            mission.load(pack)
+        with pytest.raises(MissionError) as exc:
+            mission.load(lexicon_pack)
+        assert "non-empty list" in str(exc.value)
 
-    def test_terms_are_stripped(self, pack: Path):
-        _write(pack, "lexicon.yaml",
+    def test_terms_are_stripped(self, lexicon_pack: Path):
+        _write(lexicon_pack, "lexicon.yaml",
                {"CONCERT_TOUR": [["  tour dates  "]],
                 "SPORTING_EVENT": [["a"]], "AIRSHOW": [["b"]]})
-        assert mission.load(pack).lexicon["CONCERT_TOUR"] == (("tour dates",),)
+        assert mission.load(lexicon_pack).lexicon["CONCERT_TOUR"] == \
+            (("tour dates",),)
 
 
 class TestScoring:
@@ -275,7 +414,7 @@ class TestScoring:
 
     def test_a_weight_outside_zero_to_one_is_refused(self, pack: Path):
         data = yaml.safe_load((pack / "scoring.yaml").read_text())
-        data["weights"]["AIRSHOW"]["social"] = 1.4
+        data["weights"]["AIRSHOW"]["chatter"] = 1.4
         _write(pack, "scoring.yaml", data)
         with pytest.raises(MissionError) as exc:
             mission.load(pack)
@@ -516,7 +655,7 @@ class TestNoMissionConfigured:
 
         broken = tmp_path / "missions" / "broken"
         shutil.copytree(REFERENCE, broken)
-        (broken / "lexicon.yaml").unlink()
+        (broken / "streams.yaml").unlink()
 
         config = load_config(None)
         config["database"]["path"] = ":memory:"
@@ -524,7 +663,7 @@ class TestNoMissionConfigured:
         config["mission"] = {"dir": str(broken.parent), "name": "broken"}
         with pytest.raises(MissionError) as exc:
             create_app(config)
-        assert "lexicon.yaml" in str(exc.value)
+        assert "streams.yaml" in str(exc.value)
 
 
 # ---------------------------------------------------------------------------
@@ -891,9 +1030,15 @@ class TestTheAuthoringGuideMatchesTheLoader:
             key
             for group in (mission.MANIFEST_KEYS, mission.SCORING_KEYS,
                           mission.GEOGRAPHY_KEYS, mission.FACILITY_KEYS,
-                          mission.THRESHOLD_SECTIONS, set(mission.PROMPTS))
+                          mission.THRESHOLD_SECTIONS, set(mission.PROMPTS),
+                          mission.STREAM_KEYS,
+                          set(mission.SOCIAL_PLATFORMS))
             for key in sorted(group)
-            if f"`{key}`" not in guide and key not in guide
+            # Backticked, or written as the YAML key it is. A bare substring
+            # match let `collects` pass on the word "collects" in a sentence
+            # about what the engine does — which is how an undocumented key
+            # reaches an author as a refusal instead of as a paragraph.
+            if f"`{key}`" not in guide and f"{key}:" not in guide
         ]
         assert undocumented == [], undocumented
 

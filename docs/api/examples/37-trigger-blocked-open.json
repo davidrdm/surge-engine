@@ -3,7 +3,7 @@
   "note": "409 for an iteration that is merely OPEN rather than crash-interrupted. Same status, same two remedies, and no Retry-After for the same reason as 26: waiting never clears it. The kind is what tells an operator what happened; it does not change what to do about it.",
   "request": {
     "method": "POST",
-    "path": "/v1/sessions/5/iterations",
+    "path": "/v1/sessions/6/iterations",
     "headers": {
       "Authorization": "Bearer <SURGE_API_TOKEN>"
     },
@@ -12,7 +12,7 @@
   "response": {
     "status": 409,
     "body": {
-      "detail": "Session 5 already has an unfinished iteration: iteration 4 is open at SEEDING and was never finished — resume it (POST /v1/iterations/4/resume) or abandon it (POST /v1/iterations/4/abandon). Starting a new one now would be silently under-collected: the cooldown guard is keyed on the query hash across ALL iterations, so the open run's recent executions would suppress this one's queries with no visible cause."
+      "detail": "Session 6 already has an unfinished iteration: iteration 4 is open at SEEDING and was never finished — resume it (POST /v1/iterations/4/resume) or abandon it (POST /v1/iterations/4/abandon). Starting a new one now would be silently under-collected: the cooldown guard is keyed on the query hash across ALL iterations, so the open run's recent executions would suppress this one's queries with no visible cause."
     }
   }
 }

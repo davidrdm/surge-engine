@@ -32,7 +32,7 @@ from . import enums
 from ..services import governance
 from ..services.redact import redact_payload, redact_text
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 16
 _SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
 class SchemaUpgradeError(RuntimeError):
@@ -93,6 +93,29 @@ _REBUILDS: tuple[tuple[str, str, str], ...] = (
 _VOCABULARY: tuple[tuple[str, str, str], ...] = (
     ("query_queue", "skip_reason", "THIN_PAIRED_SAMPLE"),
 )
+
+
+def _index_ddl(index: str) -> str:
+    """The CREATE INDEX statement for `index`, lifted out of schema.sql.
+
+    Same argument as `_table_ddl`: the swapped index and a freshly created one
+    must have ONE definition between them, or a swapped database quietly keeps
+    an old shape the next edit to schema.sql never reaches.
+    """
+    text = _SCHEMA_PATH.read_text(encoding="utf-8")
+    # Terminated at a line consisting of ");", like `_table_ddl` — never at
+    # the first bare semicolon, which a comment inside the definition may
+    # legally contain (found the hard way: the truncated DDL executed as
+    # "incomplete input" on every pre-v15 database). Swap-listed indexes are
+    # therefore written in the multi-line form.
+    match = re.search(
+        rf"^CREATE (?:UNIQUE )?INDEX IF NOT EXISTS {re.escape(index)}\b"
+        rf"(?:.|\n)*?^\);",
+        text, re.MULTILINE)
+    if match is None:                              # pragma: no cover — typo guard
+        raise SchemaUpgradeError(
+            f"schema.sql has no CREATE INDEX for {index!r}")
+    return match.group(0)
 
 
 def _table_ddl(table: str) -> str:
@@ -216,6 +239,48 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     # NULL means the receipt predates this column, which is a different fact
     # from a request that could not be reconstructed.
     ("receipts", "prompt_user_hash", "TEXT"),
+    # Version 15. Which mission stream a row belongs to, on every table where
+    # per-stream work must stay distinguishable: queries (seeding and
+    # cooldown), refusals (gap attribution), signals (scoring kind and
+    # banding family), judgements (resume and retry are per stream), and
+    # skips (a rescan must recognise its own refusals per stream). NULL means
+    # the implicit stream — a no-streams mission, or a pre-v15 row — which is
+    # a different fact from a stream that has since been renamed. Plain TEXT,
+    # never a CHECK: stream ids are mission vocabulary, and a mission
+    # vocabulary in a CHECK is the mistake version 12 existed to remove.
+    ("query_queue", "stream", "TEXT"),
+    ("queue_decisions", "stream", "TEXT"),
+    ("signals", "stream", "TEXT"),
+    ("triage_decisions", "stream", "TEXT"),
+    ("triage_skips", "stream", "TEXT"),
+    # Version 15. Operator-calendar events overlapping the scored window,
+    # snapshotted verbatim. NULL = predates the feature or no calendar, which
+    # is a different fact from "[]" = calendar present, nothing matched.
+    ("correlations", "calendar_matches_json", "TEXT"),
+    ("correlations", "config_hash", "TEXT"),
+)
+
+#: Indexes whose DEFINITION changed, as `(index name, guard fragment)`.
+#:
+#: An index cannot be altered in place, but unlike a table it can be dropped
+#: and recreated without touching a row — so this needs none of `_REBUILDS`'
+#: ceremony: no snapshot, no transaction choreography, no column mapping. The
+#: guard is a fragment of the CURRENT definition; while the stored DDL lacks
+#: it, the index is stale and is swapped. Runs after `_migrate`, because the
+#: new definition may name a column `_MIGRATIONS` has only just added.
+#:
+#: ONE entry per index, and its fragment names the MOST RECENT addition to
+#: that index — an older shape lacks it and is rebuilt to today's definition
+#: whole, so a database arriving from any earlier version takes one swap.
+#:
+#: v15: `idx_sig_dedup` gains COALESCE(stream, ''). Old rows all coalesce to
+#: '', so the new key is the old key plus a constant — uniqueness holds after
+#: the swap exactly where it held before.
+#: v16: `idx_sig_dedup` gains COALESCE(city_id, -1), so one observation about
+#: two cities is two rows. Strictly WIDENS the key: every pair distinct under
+#: the old index stays distinct, so the swap cannot fail on existing rows.
+_INDEX_SWAPS: tuple[tuple[str, str], ...] = (
+    ("idx_sig_dedup", "COALESCE(city_id"),
 )
 
 
@@ -327,6 +392,7 @@ class SurgeDB:
             # transaction left open by it would turn the rebuild's
             # `PRAGMA foreign_keys = OFF` into a silent no-op.
             self._migrate()
+            self._swap_indexes()
             upgraded = self._upgrade()
             repaired = self._repair_observed_at()
             self.conn.execute(
@@ -648,6 +714,26 @@ class SurgeDB:
                     f"ALTER TABLE {table} ADD COLUMN {column} {decl}"
                 )
 
+    def _swap_indexes(self) -> None:
+        """Recreate any index whose stored definition is stale.
+
+        Driven by the live `sqlite_master` DDL rather than a version number,
+        like everything else in this pipeline, so it is idempotent and correct
+        even for a database whose recorded version is missing or wrong. The
+        DROP+CREATE rebuilds the index over existing rows — a one-time cost on
+        a large table, and never a data rewrite.
+        """
+        for index, fragment in _INDEX_SWAPS:
+            row = self.conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='index' AND name=?",
+                (index,)).fetchone()
+            if row is None or row["sql"] is None:
+                continue                      # not created yet, or auto-index
+            if fragment in row["sql"]:
+                continue                      # already the current shape
+            self.conn.execute(f"DROP INDEX {index}")
+            self.conn.execute(_index_ddl(index))
+
     def _mission(self, field: str) -> Any:
         """The loaded mission, or a refusal that says why there is none.
 
@@ -830,6 +916,67 @@ class SurgeDB:
             "(city_id, name, address, lat, lon, location_type) VALUES (?,?,?,?,?,?)",
             (city_id, name, address, lat, lon, location_type),
         )
+
+    # ------------------------------------------------------------------
+    # Operator calendar
+    # ------------------------------------------------------------------
+
+    def insert_calendar_events(
+        self, session_id: int, events: Sequence[Mapping[str, Any]],
+        *, source_name: str | None = None,
+    ) -> tuple[int, list[str]]:
+        """Append events to a session's calendar. Returns (inserted, warnings).
+
+        One transaction and one `added_at` for the whole batch, because the
+        batch is one operator action and reconstruction filters on that
+        instant. A duplicate — same (city, name, start) already on the session
+        — is a warning rather than an error, mirroring `add_cities`: re-loading
+        a grown file must be a safe way to append.
+        """
+        added_at = iso()
+        inserted, warnings = 0, []
+        with self._lock:
+            for event in events:
+                try:
+                    self.conn.execute(
+                        "INSERT INTO calendar_events "
+                        "(session_id, name, city_label, city_canonical, "
+                        " starts_at, ends_at, category, note, source_name, "
+                        " added_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        (session_id, event["name"], event["city_label"],
+                         event["city_canonical"], event["starts_at"],
+                         event["ends_at"], event.get("category"),
+                         event.get("note"), source_name, added_at))
+                    inserted += 1
+                except sqlite3.IntegrityError:
+                    warnings.append(
+                        f"{event['city_label']}: {event['name']!r} starting "
+                        f"{event['starts_at']} is already on this session's "
+                        f"calendar; not added again")
+            self.conn.commit()
+        return inserted, warnings
+
+    def calendar_events(
+        self, session_id: int, *, added_before: str | None = None,
+        city_canonical: str | None = None,
+    ) -> list[sqlite3.Row]:
+        """A session's calendar, oldest addition first.
+
+        `added_before` is the reconstruction filter: an iteration's context is
+        exactly the events with added_at <= its started_at, so a later append
+        cannot change what an earlier receipt hashed. Ordered by
+        (added_at, event_id) — insertion order — for the same reason: the
+        prompt block must serialise identically on every rebuild.
+        """
+        sql = ("SELECT * FROM calendar_events WHERE session_id = ?")
+        params: list[Any] = [session_id]
+        if added_before is not None:
+            sql += " AND added_at <= ?"
+            params.append(added_before)
+        if city_canonical is not None:
+            sql += " AND city_canonical = ?"
+            params.append(city_canonical)
+        return self.all(sql + " ORDER BY added_at, event_id", tuple(params))
 
     def get_key_locations(self, city_id: int) -> list[sqlite3.Row]:
         return self.all(
@@ -1368,6 +1515,7 @@ class SurgeDB:
         rule_code: str | None = None,
         not_before: datetime | None = None,
         created_iteration_id: int | None = None,
+        stream: str | None = None,
     ) -> int:
         """Insert a queue row. Raises sqlite3.IntegrityError on a duplicate.
 
@@ -1381,15 +1529,17 @@ class SurgeDB:
         """
         enums.validate(source_type, enums.SOURCE_TYPES, "source_type")
         enums.validate(origin, enums.QUERY_ORIGINS, "origin")
+        if stream is not None:
+            self._mission("stream").stream_id(stream)
         return self._insert(
             "INSERT INTO query_queue "
             "(session_id, iteration_id, source_type, endpoint, params_json, "
-            " city_id, location_id, dedup_key, priority, tip_depth, "
+            " stream, city_id, location_id, dedup_key, priority, tip_depth, "
             " tipped_by_signal_id, rule_code, not_before, status, origin, "
             " created_at, created_iteration_id) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'PENDING',?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'PENDING',?,?,?)",
             (session_id, iteration_id, source_type, endpoint,
-             json.dumps(params, sort_keys=True), city_id, location_id,
+             json.dumps(params, sort_keys=True), stream, city_id, location_id,
              dedup_key, priority, tip_depth, tipped_by_signal_id, rule_code,
              iso(not_before) if not_before else None, origin,
              iso(),
@@ -1634,6 +1784,35 @@ class SurgeDB:
         )
         return sorted(r["source_type"] for r in rows)
 
+    def unreliable_social_streams(
+        self, iteration_id: int, city_id: int
+    ) -> list[str | None]:
+        """Streams whose SOCIAL queries for this city failed or were skipped,
+        plus refusals a guard recorded per stream. The per-stream half of
+        `unreliable_source_types` + `refused_source_types`, for mapping social
+        losses to the family each stream occupies."""
+        placeholders = ",".join("?" * len(enums.UNRELIABLE_QUERY_STATUSES))
+        streams = {
+            row["stream"] for row in self.all(
+                f"SELECT DISTINCT stream FROM query_queue "
+                f"WHERE iteration_id = ? AND city_id = ? "
+                f"  AND source_type = 'SOCIAL' "
+                f"  AND status IN ({placeholders})",
+                (iteration_id, city_id,
+                 *sorted(enums.UNRELIABLE_QUERY_STATUSES)))
+        }
+        refusals = ("CAP_CITY", "CAP_ITERATION", "BUDGET_EXHAUSTED",
+                    "NO_MAPPING")
+        ref_ph = ",".join("?" * len(refusals))
+        streams |= {
+            row["stream"] for row in self.all(
+                f"SELECT DISTINCT stream FROM queue_decisions "
+                f"WHERE iteration_id = ? AND source_type = 'SOCIAL' "
+                f"  AND stream IS NOT NULL AND outcome IN ({ref_ph})",
+                (iteration_id, *refusals))
+        }
+        return sorted(streams, key=lambda v: (v is None, v or ""))
+
     def unreliable_sources(
         self, iteration_id: int, city_id: int
     ) -> list[tuple[str, str]]:
@@ -1786,16 +1965,19 @@ class SurgeDB:
         signal_id: int | None = None,
         detail: str | None = None,
         stage: str | None = None,
+        stream: str | None = None,
     ) -> int:
         enums.validate(outcome, enums.QUEUE_DECISION_OUTCOMES, "outcome")
         enums.validate_optional(stage, enums.STAGES, "stage")
+        if stream is not None:
+            self._mission("stream").stream_id(stream)
         return self._insert(
             "INSERT INTO queue_decisions "
-            "(iteration_id, rule_code, outcome, source_type, city_name, "
-            " dedup_key, signal_id, detail, decided_at, stage) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (iteration_id, rule_code, outcome, source_type, city_name,
-             dedup_key, signal_id, detail, iso(), stage),
+            "(iteration_id, rule_code, outcome, source_type, stream, "
+            " city_name, dedup_key, signal_id, detail, decided_at, stage) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (iteration_id, rule_code, outcome, source_type, stream,
+             city_name, dedup_key, signal_id, detail, iso(), stage),
         )
 
     def get_queue_decisions(self, iteration_id: int) -> list[sqlite3.Row]:
@@ -1856,18 +2038,21 @@ class SurgeDB:
     def get_raw_result(self, raw_id: int) -> sqlite3.Row | None:
         return self.one("SELECT * FROM raw_results WHERE raw_id = ?", (raw_id,))
 
-    def triaged_urls(self, iteration_id: int) -> set[str]:
-        """URLs already ruled on in this iteration.
+    def triaged_urls(self, iteration_id: int) -> set[tuple[str | None, str]]:
+        """(stream, url) pairs already ruled on in this iteration.
 
         Resume correctness depends on this rather than on which raw_results rows
-        have decisions. Posts are deduplicated by URL across payloads, so when
-        the same article arrives from three queries only one of those three
-        payloads receives decision rows — the other two would look untriaged
-        forever and be re-judged on every resume.
+        have decisions. Posts are deduplicated by (stream, URL) across
+        payloads, so when the same article arrives from three queries only one
+        of those payloads receives that stream's decision row — the others
+        would look untriaged forever and be re-judged on every resume. Keyed
+        per STREAM because the same URL is legitimately judged once under each
+        stream's criteria; a plain URL set would let one stream's judgement
+        silently satisfy another's.
         """
         return {
-            row["url"] for row in self.all(
-                "SELECT DISTINCT url FROM triage_decisions "
+            (row["stream"], row["url"]) for row in self.all(
+                "SELECT DISTINCT stream, url FROM triage_decisions "
                 "WHERE iteration_id = ? AND url IS NOT NULL",
                 (iteration_id,),
             )
@@ -1899,8 +2084,8 @@ class SurgeDB:
         """
         placeholders = ",".join("?" * len(enums.TRIAGE_UNCOVERED))
         return self.all(
-            f"SELECT t.triage_id, t.url, t.raw_id, t.state, t.fault_detail, "
-            f"       r.payload_json "
+            f"SELECT t.triage_id, t.url, t.raw_id, t.state, t.stream, "
+            f"       t.fault_detail, r.payload_json "
             f"FROM triage_decisions t "
             f"LEFT JOIN raw_results r ON r.raw_id = t.raw_id "
             f"WHERE t.iteration_id = ? AND t.state IN ({placeholders}) "
@@ -1922,34 +2107,40 @@ class SurgeDB:
         granularity at which a judgement exists.
         """
         return self.all(
-            "SELECT * FROM raw_results "
-            "WHERE iteration_id = ? AND source_type = ? ORDER BY raw_id",
+            # The query's stream rides along: a payload's stream is a property
+            # of the query that fetched it, and `raw_results` deliberately
+            # does not duplicate it. LEFT JOIN so a legacy row whose query is
+            # gone still gathers (stream NULL = the implicit stream).
+            "SELECT r.*, q.stream AS stream FROM raw_results r "
+            "LEFT JOIN query_queue q ON q.query_id = r.query_id "
+            "WHERE r.iteration_id = ? AND r.source_type = ? ORDER BY r.raw_id",
             (iteration_id, source_type),
         )
 
     def recorded_skips(
         self, iteration_id: int
-    ) -> tuple[set[tuple[int | None, str]], set[str]]:
+    ) -> tuple[set[tuple[int | None, str]], set[tuple[str | None, str]]]:
         """What `_gather` has already written off, so a resume is idempotent.
 
         Two shapes, because the reasons have two shapes. A structural refusal
         is a fact about one payload and there may be several of them in it, so
         it is keyed `(raw_id, reason)` — a rescan of the same bytes produces
         the same count, so recording the pair once is enough. STALE is a fact
-        about one post, keyed by URL.
+        about one post under one stream's gathering, keyed (stream, url).
 
         Without this, resuming a stage re-recorded every refusal and the
         coverage report double-counted work that was already on the record.
         """
         pairs: set[tuple[int | None, str]] = set()
-        stale: set[str] = set()
+        stale: set[tuple[str | None, str]] = set()
         for row in self.all(
-            "SELECT raw_id, reason, url FROM triage_skips WHERE iteration_id = ?",
+            "SELECT raw_id, reason, url, stream FROM triage_skips "
+            "WHERE iteration_id = ?",
             (iteration_id,),
         ):
             if row["reason"] == "STALE":
                 if row["url"]:
-                    stale.add(str(row["url"]))
+                    stale.add((row["stream"], str(row["url"])))
             else:
                 pairs.add((row["raw_id"], str(row["reason"])))
         return pairs, stale
@@ -1994,6 +2185,7 @@ class SurgeDB:
         raw_id: int | None = None,
         city_id: int | None = None,
         location_id: int | None = None,
+        stream: str | None = None,
         track: str = "UNKNOWN",
         observed_at: datetime | str | None = None,
         quality: float = 0.0,
@@ -2005,6 +2197,8 @@ class SurgeDB:
     ) -> int:
         enums.validate(signal_type, enums.SIGNAL_TYPES, "signal_type")
         self._mission("track").attribution(track)
+        if stream is not None:
+            self._mission("stream").stream_id(stream)
         enums.validate(signal_state, enums.SIGNAL_STATES, "signal_state")
         # 9.4. Defaults to UNRECORDED rather than to a plausible value: a
         # writer that forgets should produce a visible absence, not a claim
@@ -2052,11 +2246,11 @@ class SurgeDB:
                 observed_at = iso(parsed)
 
         cols = ["iteration_id", "raw_id", "signal_type", "city_id",
-                "location_id", "track", "observed_at", "quality",
+                "location_id", "stream", "track", "observed_at", "quality",
                 "signal_state", "state_reason",
                 "collection_class", "collection_basis"]
         vals: list[Any] = [iteration_id, raw_id, signal_type, city_id,
-                           location_id, track, observed_at, quality,
+                           location_id, stream, track, observed_at, quality,
                            signal_state, state_reason,
                            collection_class, collection_basis]
         for name in self._SIGNAL_FIELDS:
@@ -2403,6 +2597,7 @@ class SurgeDB:
         fault_detail: str | None = None,
         schema_version: str | None = None,
         receipt_id: int | None = None,
+        stream: str | None = None,
     ) -> int:
         """Record one judgement, or one failure to obtain a judgement.
 
@@ -2414,14 +2609,17 @@ class SurgeDB:
         enums.validate(state, enums.TRIAGE_STATES, "state")
         if track is not None:
             self._mission("track").attribution(track)
+        if stream is not None:
+            self._mission("stream").stream_id(stream)
         return self._insert(
             "INSERT INTO triage_decisions "
             "(iteration_id, raw_id, url, relevant, state, fault_detail, "
-            " track, cities_json, locations_json, salience, "
+            " stream, track, cities_json, locations_json, salience, "
             " imminence_hours, rationale, signal_id, receipt_id, model, "
-            " schema_version, decided_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " schema_version, decided_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (iteration_id, raw_id, url, int(state == "ACCEPTED"), state,
-             fault_detail, track,
+             fault_detail, stream, track,
              json.dumps(cities or []), json.dumps(locations or []),
              salience, imminence_hours, rationale, signal_id, receipt_id,
              model, schema_version, iso()),
@@ -2439,17 +2637,20 @@ class SurgeDB:
         max_post_age_hours: float | None = None,
         detail: str | None = None,
         items_lost: int | None = None,
+        stream: str | None = None,
     ) -> int:
         """Record a collected post that never reached the model (8.9)."""
         enums.validate(reason, enums.TRIAGE_SKIP_REASONS, "reason")
+        if stream is not None:
+            self._mission("stream").stream_id(stream)
         return self._insert(
             "INSERT INTO triage_skips "
-            "(iteration_id, raw_id, url, reason, observed_at, cutoff_at, "
-            " max_post_age_hours, detail, items_lost, skipped_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (iteration_id, raw_id, url, reason, observed_at, cutoff_at,
-             max_post_age_hours, (detail or None) and detail[:2000],
-             items_lost, iso()),
+            "(iteration_id, raw_id, url, reason, stream, observed_at, "
+            " cutoff_at, max_post_age_hours, detail, items_lost, skipped_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (iteration_id, raw_id, url, reason, stream, observed_at,
+             cutoff_at, max_post_age_hours,
+             (detail or None) and detail[:2000], items_lost, iso()),
         )
 
     def triage_skip_counts(self, iteration_id: int) -> dict[str, int]:
@@ -2498,6 +2699,26 @@ class SurgeDB:
             (iteration_id, *sorted(enums.TRIAGE_UNCOVERED)),
         ))
 
+    def triage_uncovered_by_stream(
+        self, iteration_id: int
+    ) -> dict[str | None, int]:
+        """Unjudged posts counted per stream, for per-family gap attribution.
+
+        A stream occupies a banding family, so a gap in one stream's judgement
+        must reach THAT family — gapping all of them would overstate the loss,
+        and gapping none would hide it. `None` means the row predates streams
+        or its stream was never recorded; the caller treats that as a gap for
+        every social-derived family, conservatively.
+        """
+        placeholders = ",".join("?" * len(enums.TRIAGE_UNCOVERED))
+        rows = self.all(
+            f"SELECT stream, COUNT(*) AS n FROM triage_decisions "
+            f"WHERE iteration_id = ? AND state IN ({placeholders}) "
+            f"GROUP BY stream",
+            (iteration_id, *sorted(enums.TRIAGE_UNCOVERED)),
+        )
+        return {row["stream"]: int(row["n"]) for row in rows}
+
     # ------------------------------------------------------------------
     # Correlations and alerts
     # ------------------------------------------------------------------
@@ -2520,6 +2741,8 @@ class SurgeDB:
         band_capped: bool = False,
         rule_trace: str,
         alternatives: Sequence[Mapping[str, str]] | None = None,
+        calendar_matches: Sequence[Mapping[str, Any]] | None = None,
+        config_hash: str | None = None,
     ) -> int:
         self._mission("track").track(track)
         enums.validate(band, enums.BANDS, "band")
@@ -2530,8 +2753,9 @@ class SurgeDB:
                 " distinct_types, contributions_json, data_completeness, "
                 " failed_sources, failed_families, band_capped, rule_trace, "
                 " alternatives_json, flight_baseline_json, "
-                " evidence_freshness_json, computed_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                " evidence_freshness_json, calendar_matches_json, "
+                " config_hash, computed_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                 "ON CONFLICT(iteration_id, city_id, track) DO UPDATE SET "
                 "  score = excluded.score, band = excluded.band, "
                 "  distinct_types = excluded.distinct_types, "
@@ -2544,6 +2768,8 @@ class SurgeDB:
                 "  alternatives_json = excluded.alternatives_json, "
                 "  flight_baseline_json = excluded.flight_baseline_json, "
                 "  evidence_freshness_json = excluded.evidence_freshness_json, "
+                "  calendar_matches_json = excluded.calendar_matches_json, "
+                "  config_hash = excluded.config_hash, "
                 "  computed_at = excluded.computed_at",
                 (iteration_id, city_id, track, round(float(score), 4),
                  band, distinct_types,
@@ -2560,6 +2786,12 @@ class SurgeDB:
                  else json.dumps(flight_baseline, sort_keys=True),
                  None if evidence_freshness is None
                  else json.dumps(evidence_freshness, sort_keys=True),
+                 # NULL and [] read differently downstream: NULL is "no
+                 # calendar on this session" (or a pre-v15 row), [] is "a
+                 # calendar was consulted and nothing overlapped".
+                 None if calendar_matches is None
+                 else json.dumps(list(calendar_matches)),
+                 config_hash,
                  iso()),
             )
             row = self.one(

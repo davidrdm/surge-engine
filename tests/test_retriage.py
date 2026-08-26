@@ -214,16 +214,20 @@ class TestTheChild:
 
     def test_each_attempt_carries_its_own_receipt(self, db, config,
                                                   parent_with_gaps):
-        """Two rows for one URL across two iterations is correct: they are two
-        attempts recorded against the two runs that made them."""
+        """Two rows for one (stream, URL) across two iterations is correct:
+        they are two attempts recorded against the two runs that made them.
+        (Per stream, because the same URL judged by two streams is two
+        judgements by design — the identity retry works on is the pair.)"""
         session, parent, connectors, llm = parent_with_gaps
         orch = build(db, config, connectors, llm)
         child, _outcome = orch.retry_triage(parent)
 
-        url = db.one("SELECT url FROM triage_decisions WHERE iteration_id = ?",
-                     (child,))["url"]
-        rows = db.all("SELECT iteration_id, receipt_id FROM triage_decisions "
-                      "WHERE url = ? ORDER BY iteration_id", (url,))
+        first = db.one("SELECT url, stream FROM triage_decisions "
+                       "WHERE iteration_id = ?", (child,))
+        rows = db.all(
+            "SELECT iteration_id, receipt_id FROM triage_decisions "
+            "WHERE url = ? AND COALESCE(stream, '') = COALESCE(?, '') "
+            "ORDER BY iteration_id", (first["url"], first["stream"]))
         assert len(rows) == 2
         assert {r["iteration_id"] for r in rows} == {parent, child}
         assert rows[0]["receipt_id"] != rows[1]["receipt_id"]

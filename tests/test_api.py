@@ -2094,6 +2094,16 @@ class TestContractArtifacts:
     # links, and none of them ever asked whether the security metadata was
     # there at all. These do.
 
+    def test_the_api_version_is_the_package_version(self, spec):
+        """One release number. 0.1 shipped THREE independent version strings —
+        package 0.1.0, `info.version` 0.6.0, SCHEMA_VERSION 14 — and only the
+        schema number is a deliberately separate fact (a database format is
+        not a release). A client reading `info.version` and a receipt reading
+        `package_version` must be reading the same thing, so the two are
+        pinned equal here rather than left to whoever edits `app.py` next."""
+        import surge_iw
+        assert spec["info"]["version"] == surge_iw.__version__
+
     def test_the_bearer_scheme_is_declared(self, spec):
         scheme = spec["components"]["securitySchemes"]["BearerToken"]
         assert scheme["type"] == "http"
@@ -2230,6 +2240,20 @@ class TestContractArtifacts:
             # finding asked for.
             ("EvidenceOut", "collection"),
             ("EvidenceOut", "alternatives"),
+            # v0.2 calendar. `calendar_matches` is null-vs-[] semantics a
+            # client must not guess at; `calendar_set` is a NAME with the same
+            # file-disclosure reasoning as `input_set`; `added_at` is the
+            # reconstruction filter, which is the one non-obvious fact about
+            # an otherwise self-describing row.
+            ("SessionIn", "calendar_set"),
+            ("SessionOut", "calendar_events"),
+            ("EvidenceOut", "calendar_matches"),
+            ("CalendarAppendIn", "calendar_set"),
+            ("CalendarEventOut", "added_at"),
+            # v16. A score with no receipt behind it needs its own statement
+            # of the settings that produced it, and a bare hash on a response
+            # tells a client nothing about what to compare it against.
+            ("EvidenceOut", "config_hash"),
         ):
             described = schemas[model]["properties"][field].get("description")
             assert described, f"{model}.{field} has no description"

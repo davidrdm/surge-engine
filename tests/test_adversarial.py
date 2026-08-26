@@ -113,7 +113,13 @@ class TestTimingGatesHoldOffline:
     def test_a_post_that_cannot_correlate_cannot_buy_collection(
         self, config, case
     ):
-        post = as_post(case)
+        # Dated from ANCHOR, because the gates below are asked at ANCHOR. The
+        # default real-clock dating is for the live matrix, where the whole run
+        # shares one wall clock; mixing the two frames here made "30 days old"
+        # drift toward ANCHOR as real time passed, and the case flipped from
+        # stale to fresh the day the calendar crossed the tip window — a test
+        # that fails on a date is a test of the date.
+        post = as_post(case, now=ANCHOR)
         signal = {"signal_state": "CONFIRMED", "salience": 1.0,
                   "observed_at": post["observed_at"] or None}
         if case.case_id == "time-future":

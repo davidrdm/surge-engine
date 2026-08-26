@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 from ..base.agent import LLMAgent, TruncatedResponse
 from ..db import enums
 from ..db.database import SurgeDB, iso, parse_iso, utcnow
+from ..services import calendar as calendar_service
 from ..services import (facility, governance, provenance, receipts,
                         sensitivity)
 from .queueing import admit_city
@@ -38,8 +39,8 @@ from .triage_schema import (
     parse_batch,
 )
 
-def build_system_prompt(mission: Any,
-                        config: Mapping[str, Any]) -> tuple[str, str]:
+def build_system_prompt(mission: Any, config: Mapping[str, Any],
+                        stream: Any = None) -> tuple[str, str]:
     """The screening criteria in force, and the version label for them.
 
     Both come from the mission pack. The engine has no opinion about what makes
@@ -63,8 +64,15 @@ def build_system_prompt(mission: Any,
             "`mission.name`.")
     require_nexus = bool((config.get("triage") or {}).get("require_nexus", True))
     slot = "relevance_strict" if require_nexus else "relevance_broad"
-    prompt = mission.prompts["triage"].format(relevance=mission.prompts[slot])
-    return prompt, mission.prompt_versions[slot]
+    text, version = mission.prompts[slot], mission.prompt_versions[slot]
+    if stream is not None and slot in stream.relevance:
+        # The stream's own leg, inheriting the mission-level one per leg
+        # independently when it declares none. The version label follows the
+        # text: a receipt naming the mission's label for a stream's words
+        # would make two different criteria indistinguishable afterwards.
+        text, version = stream.relevance[slot]
+    prompt = mission.prompts["triage"].format(relevance=text)
+    return prompt, version
 
 
 class TriageAgent(LLMAgent):
@@ -80,16 +88,33 @@ class TriageAgent(LLMAgent):
         self.max_post_age_hours = float(
             triage_cfg.get("max_post_age_hours", 168.0))
         # Resolved once, so every batch in this run is judged under the same
-        # criteria and the receipt hash is stable across them.
-        # Resolved once, so every batch in this run is judged under the same
-        # criteria and the receipt hash is stable across them.
-        self.system_prompt, self.prompt_version = build_system_prompt(
-            getattr(db, "mission", None), config)
+        # criteria and the receipt hash is stable across them. One prompt per
+        # STREAM: each stream may carry its own relevance leg, and a batch is
+        # judged under exactly one system prompt, so batches are per stream
+        # and each receipt's prompt_hash is that stream's.
+        mission = getattr(db, "mission", None)
+        # None — the mission-level legs — is always present: it is the
+        # implicit stream's prompt, and it is also what judges a post whose
+        # stream cannot be established (a pre-stream row in a mixed-era
+        # database). A post the engine cannot place under any stream's
+        # criteria is still judged under the MISSION'S, never dropped.
+        self.prompts_by_stream: dict[str | None, tuple[str, str]] = {
+            None: build_system_prompt(mission, config)}
+        if mission is not None:
+            for stream in getattr(mission, "streams", ()):
+                self.prompts_by_stream[stream.id] = build_system_prompt(
+                    mission, config, stream)
+        # The implicit stream's pair, kept under the old names for the
+        # single-stream call sites (alert-path helpers, tests, logs).
+        self.system_prompt, self.prompt_version = next(
+            iter(self.prompts_by_stream.values()))
         self.require_nexus = bool(triage_cfg.get("require_nexus", True))
         #: 9.4. raw_id -> the acquisition record for signals from that payload.
         #: Memoised because one response yields many posts and the answer is a
         #: property of the response, not of the post.
         self._acquisition_cache: dict[int, dict[str, str]] = {}
+        #: iteration_id -> the calendar context block, resolved once per run.
+        self._calendar_cache: dict[int, str] = {}
 
     # ------------------------------------------------------------------
 
@@ -137,10 +162,22 @@ class TriageAgent(LLMAgent):
         by_city: dict[str, list[dict[str, Any]]] = {}
 
         batch_size = int(batch_size or self.batch_size)
-        for batch in _batched(posts, batch_size):
+        # One system prompt per model call, so batches are PER STREAM: a
+        # stream may carry its own relevance criteria, and mixing two
+        # streams' posts in one call would judge half of them under the
+        # wrong ones. Iteration order follows the posts, which follow the
+        # mission's stream declaration order — deterministic, so the receipt
+        # sequence is reproducible.
+        by_stream: dict[str | None, list[dict[str, Any]]] = {}
+        for post in posts:
+            by_stream.setdefault(post.get("stream"), []).append(post)
+        uncovered_by_stream: dict[str | None, int] = {}
+
+        for stream, stream_posts in by_stream.items():
+          for batch in _batched(stream_posts, batch_size):
             payload, index = build_request(batch, iteration_id)
             outcome, receipt_id = self._judge(
-                payload, list(index), iteration_id)
+                payload, list(index), iteration_id, stream)
             # Which CALL judged each item. One entry per requested id, because
             # a split batch is several calls and a decision must reference the
             # receipt whose input actually contained it.
@@ -166,7 +203,7 @@ class TriageAgent(LLMAgent):
                 for sub in _batched(batch, attempt_size):
                     sub_payload, sub_index = build_request(sub, iteration_id)
                     sub_outcome, receipt_id = self._judge(
-                        sub_payload, list(sub_index), iteration_id)
+                        sub_payload, list(sub_index), iteration_id, stream)
                     merged.valid.update(sub_outcome.valid)
                     merged.faults.extend(sub_outcome.faults)
                     merged.missing.extend(sub_outcome.missing)
@@ -194,11 +231,17 @@ class TriageAgent(LLMAgent):
                                        receipt_of.get(fault.item_id))
 
             faulted = {f.item_id for f in outcome.faults}
+            for fault in outcome.faults:
+                if fault.item_id and fault.item_id in index:
+                    uncovered_by_stream[stream] = (
+                        uncovered_by_stream.get(stream, 0) + 1)
             for identifier in outcome.missing:
                 if identifier in faulted:
                     continue          # already recorded as INVALID_OUTPUT
                 state = "MODEL_ERROR" if outcome.batch_error else "UNDECIDED"
                 counts["model_error" if outcome.batch_error else "undecided"] += 1
+                uncovered_by_stream[stream] = (
+                    uncovered_by_stream.get(stream, 0) + 1)
                 self._record_fault(
                     iteration_id, index[identifier], state,
                     ItemFault(identifier, state,
@@ -229,12 +272,19 @@ class TriageAgent(LLMAgent):
             # Not a rejection and not a quiet city: these posts were never
             # judged, so SOCIAL coverage for this iteration is incomplete and
             # correlation must say so rather than score as if it were whole.
+            # Per stream, because streams may occupy different banding
+            # families and the gap must reach the right one.
+            where = ", ".join(
+                f"{n} in stream {stream}" if stream else f"{n} implicit"
+                for stream, n in sorted(
+                    uncovered_by_stream.items(), key=lambda kv: kv[1],
+                    reverse=True))
             self._add_degradation(
                 iteration_id,
                 f"TriageAgent: {uncovered} of {counts['requested']} post(s) "
                 f"were not judged ({counts['undecided']} undecided, "
                 f"{counts['invalid']} invalid, {counts['model_error']} model "
-                "error); SOCIAL coverage is incomplete")
+                f"error; {where}); SOCIAL coverage is incomplete")
 
         self._log(
             "INFO" if not uncovered else "WARNING",
@@ -276,11 +326,12 @@ class TriageAgent(LLMAgent):
         pre-model gates run — once, on the copy that was chosen.
         """
         cutoff = utcnow() - timedelta(hours=self.max_post_age_hours)
-        decided: set[str] = self.db.triaged_urls(iteration_id)
+        decided = self.db.triaged_urls(iteration_id)          # (stream, url)
         recorded_pairs, recorded_stale = self.db.recorded_skips(iteration_id)
 
         def skip(reason: str, *, raw_id: int | None = None,
-                 url: str | None = None, **fields: Any) -> None:
+                 url: str | None = None, stream: str | None = None,
+                 **fields: Any) -> None:
             """8.9. Every way a collected post fails to reach the model.
 
             Five drops used to leave four with no trace at all and the fifth
@@ -294,21 +345,25 @@ class TriageAgent(LLMAgent):
             resumed stage does not report the same loss twice.
             """
             if reason == "STALE":
-                if url in recorded_stale:
+                if (stream, url) in recorded_stale:
                     return
                 if url:
-                    recorded_stale.add(url)
+                    recorded_stale.add((stream, url))
             elif (raw_id, reason) in recorded_pairs:
                 return
             self.db.insert_triage_skip(
                 iteration_id=iteration_id, reason=reason, raw_id=raw_id,
-                url=url, **fields)
+                url=url, stream=stream, **fields)
 
-        # url -> every copy of it that was collected, in scan order.
-        occurrences: dict[str, list[dict[str, Any]]] = {}
+        # (stream, url) -> every copy of it that was collected, in scan
+        # order. Per STREAM, because streams judge under different criteria:
+        # the same article surfacing in two streams is two judgements, while
+        # within one stream it is still exactly one.
+        occurrences: dict[tuple[str | None, str], list[dict[str, Any]]] = {}
 
         for raw in self.db.collected_raw_results(iteration_id, "SOCIAL"):
             raw_id = int(raw["raw_id"])
+            stream = raw["stream"]
             try:
                 payload = json.loads(raw["payload_json"])
             except (TypeError, ValueError) as exc:
@@ -333,14 +388,14 @@ class TriageAgent(LLMAgent):
                     skip("ITEM_NO_URL", raw_id=raw_id,
                          detail="no url, so a judgement has nothing to bind to")
                     continue
-                if url in decided:
+                if (stream, url) in decided:
                     # NOT a skip, and not a rejudgement. The same article
                     # legitimately surfaces from several queries, and on a
-                    # resume it may already have been ruled on; either way the
-                    # existing judgement is the record.
+                    # resume it may already have been ruled on; either way
+                    # that stream's judgement is the record.
                     continue
-                occurrences.setdefault(url, []).append(
-                    {**item, "raw_id": raw_id, "url": url})
+                occurrences.setdefault((stream, url), []).append(
+                    {**item, "raw_id": raw_id, "url": url, "stream": stream})
             if structural:
                 # Every structural refusal in this payload is now on the
                 # record, so a rescan must not write them again.
@@ -348,8 +403,8 @@ class TriageAgent(LLMAgent):
                                    (raw_id, "ITEM_NO_URL")}
 
         posts: list[dict[str, Any]] = []
-        for url in occurrences:
-            item = _representative(occurrences[url])
+        for stream, url in occurrences:
+            item = _representative(occurrences[(stream, url)])
             # Measured live: the social endpoints return a long tail of
             # ancient content. In the first real iteration the MEDIAN post was
             # 206 days old and the oldest 2,165; only 1% fell inside the
@@ -369,6 +424,7 @@ class TriageAgent(LLMAgent):
                 # the run did. Same moved-cutoff hazard 8.8 had to design
                 # around.
                 skip("STALE", raw_id=int(item["raw_id"]), url=url,
+                     stream=stream,
                      observed_at=iso(observed), cutoff_at=iso(cutoff),
                      max_post_age_hours=self.max_post_age_hours)
                 continue
@@ -433,8 +489,12 @@ class TriageAgent(LLMAgent):
             if item is None:
                 missing += 1
                 continue
+            # The parent's decision row says which stream asked for the
+            # judgement, so the retry re-asks under the SAME criteria — a
+            # retry that switched streams would answer a different question
+            # and file it under the old one.
             posts.append({**item, "raw_id": int(row["raw_id"]),
-                          "url": row["url"]})
+                          "url": row["url"], "stream": row["stream"]})
 
         self._log(
             "INFO",
@@ -461,7 +521,7 @@ class TriageAgent(LLMAgent):
 
     def _judge(
         self, payload: Sequence[Mapping[str, Any]], expected: Sequence[str],
-        iteration_id: int,
+        iteration_id: int, stream: str | None = None,
     ) -> tuple[BatchOutcome, int]:
         """One model call, bound to the ids that were requested.
 
@@ -479,12 +539,15 @@ class TriageAgent(LLMAgent):
         prompt = (
             f"Screen these {len(payload)} items.\n\n"
             f"{json.dumps(list(payload), indent=1)}"
+            f"{self._calendar_block(iteration_id)}"
         )
+        system_prompt, prompt_version = self.prompts_by_stream.get(
+            stream) or self.prompts_by_stream[None]
         echo = receipts.ProviderEcho()
         accepted = None
         try:
             result, echo, accepted = self._call_llm_json(
-                prompt, self.system_prompt, iteration_id=iteration_id,
+                prompt, system_prompt, iteration_id=iteration_id,
                 ceiling_setting="llm.max_tokens (or lower triage.batch_size)",
             )
         except Exception as exc:  # noqa: BLE001 — recorded, stage continues
@@ -501,7 +564,8 @@ class TriageAgent(LLMAgent):
             return (BatchOutcome(batch_error=f"{type(exc).__name__}: {exc}",
                                  missing=sorted(expected),
                                  truncated=truncated),
-                    self._receipt(iteration_id, payload, echo, None))
+                    self._receipt(iteration_id, payload, echo, None,
+                                  system_prompt, prompt_version))
 
         outcome = parse_batch(result, expected,
                               getattr(self.db, "mission", None))
@@ -512,11 +576,36 @@ class TriageAgent(LLMAgent):
             self._log("WARNING",
                       f"Triage item rejected ({fault.reason}): {fault.detail}",
                       iteration_id=iteration_id, item_id=fault.item_id)
-        return outcome, self._receipt(iteration_id, payload, echo, accepted)
+        return outcome, self._receipt(iteration_id, payload, echo, accepted,
+                                      system_prompt, prompt_version)
+
+    def _calendar_block(self, iteration_id: int) -> str:
+        """The operator-calendar context for this iteration, or "".
+
+        Exactly the events with `added_at <= iteration.started_at`, in
+        insertion order — a pure function of durable rows, which is what
+        keeps `prompt_user_hash` verifiable after later appends. Memoised per
+        iteration so every batch of one run sees one identical block. It
+        rides OUTSIDE `payload`, so `input_hash` still answers "what was
+        judged" over exactly the judged items; the block is criteria-context
+        and `prompt_user_hash` covers it.
+        """
+        cached = self._calendar_cache.get(iteration_id)
+        if cached is not None:
+            return cached
+        iteration = self.db.get_iteration(iteration_id)
+        events = self.db.calendar_events(
+            int(iteration["session_id"]),
+            added_before=iteration["started_at"]) if iteration else []
+        block = calendar_service.context_block(events)
+        text = f"\n{block}" if block else ""
+        self._calendar_cache[iteration_id] = text
+        return text
 
     def _receipt(
         self, iteration_id: int, payload: Sequence[Mapping[str, Any]],
         echo: receipts.ProviderEcho, accepted_prompt: str | None,
+        system_prompt: str | None = None, prompt_version: str | None = None,
     ) -> int:
         """One receipt for one call, shared by every decision it produced.
 
@@ -528,8 +617,10 @@ class TriageAgent(LLMAgent):
             kind="TRIAGE",
             provider=self.config.get("llm", {}).get("base_url"),
             model_requested=self.model,
-            prompt_version=self.prompt_version,
-            prompt_hash=receipts.sha256_hex(self.system_prompt),
+            prompt_version=prompt_version or self.prompt_version,
+            prompt_hash=receipts.sha256_hex(
+                system_prompt if system_prompt is not None
+                else self.system_prompt),
             # What the accepted call was SENT. Equal to the rebuilt request
             # only when no retry rewrote it, which is exactly the question a
             # reconstruction has to be able to answer.
@@ -560,7 +651,7 @@ class TriageAgent(LLMAgent):
         """Persist a validated judgement. No coercion is left to do here."""
         return self.db.insert_triage_decision(
             iteration_id=iteration_id, raw_id=post["raw_id"], state=state,
-            url=post["url"], track=item.track,
+            url=post["url"], stream=post.get("stream"), track=item.track,
             cities=list(item.cities), locations=list(item.locations),
             salience=item.salience, imminence_hours=item.imminence_hours,
             rationale=item.rationale, signal_id=signal_id, model=self.model,
@@ -580,7 +671,8 @@ class TriageAgent(LLMAgent):
         """
         return self.db.insert_triage_decision(
             iteration_id=iteration_id, raw_id=post["raw_id"], state=state,
-            url=post["url"], model=self.model, schema_version=SCHEMA_VERSION,
+            url=post["url"], stream=post.get("stream"), model=self.model,
+            schema_version=SCHEMA_VERSION,
             receipt_id=receipt_id, fault_detail=fault.detail[:2000],
             rationale=f"not judged ({fault.reason}): {fault.detail}"[:2000],
         )
@@ -600,14 +692,19 @@ class TriageAgent(LLMAgent):
         # cities lands in two buckets, and recording inside the loop wrote it
         # twice — inflating every per-post count, including the coverage figure
         # that now caps the band. The city fan-out belongs to the signals.
-        recorded: dict[str, int | None] = {}
+        # Keyed (stream, url): the same article under two streams is two
+        # judgements under two criteria, and one key collapsed them to
+        # whichever stream recorded last.
+        recorded: dict[tuple[str | None, str], int | None] = {}
 
         for name, entries in by_city.items():
             if name == "__UNLOCATED__":
                 # Relevant but names no city. Recorded so the judgement is on
                 # the record, but it cannot correlate and gets no signal.
                 for entry in entries:
-                    recorded.setdefault(entry["post"]["url"], None)
+                    recorded.setdefault(
+                        (entry["post"].get("stream"), entry["post"]["url"]),
+                        None)
                 continue
 
             evidence = []
@@ -642,13 +739,14 @@ class TriageAgent(LLMAgent):
                 # The first signal this post produced, if any. A post named in
                 # two cities has two signals and one decision; the decision
                 # points at the first, and the signals carry the rest.
-                if recorded.get(post["url"]) is None:
-                    recorded[post["url"]] = signal_id
+                key = (post.get("stream"), post["url"])
+                if recorded.get(key) is None:
+                    recorded[key] = signal_id
 
-        by_url = {entry["post"]["url"]: entry
+        by_key = {(entry["post"].get("stream"), entry["post"]["url"]): entry
                   for entries in by_city.values() for entry in entries}
-        for url, signal_id in recorded.items():
-            entry = by_url[url]
+        for key, signal_id in recorded.items():
+            entry = by_key[key]
             self._record(iteration_id, entry["post"], entry["item"],
                          "ACCEPTED", signal_id=signal_id,
                          receipt_id=entry["receipt_id"])
@@ -704,6 +802,7 @@ class TriageAgent(LLMAgent):
         try:
             return self.db.insert_signal(
                 iteration_id=iteration_id, raw_id=post["raw_id"],
+                stream=post.get("stream"),
                 signal_type="SOCIAL", city_id=city_id,
                 location_id=location.location_id,
                 track=item.track,
@@ -725,6 +824,22 @@ class TriageAgent(LLMAgent):
                 **self._acquisition(post.get("raw_id")),
             )
         except sqlite3.IntegrityError:
+            # A signal the dedup index already holds. Legitimate on a re-run
+            # of this stage, where writing the same observation twice is
+            # exactly what the index exists to prevent — so it is not an
+            # error. But it is a judgement that produced no evidence row, and
+            # this used to return None in silence: the live run that found the
+            # missing-city bug had no record of the loss anywhere, which is
+            # the one thing this system is not allowed to do.
+            self._log(
+                "WARNING",
+                f"Signal for {post['url']} in city {city_id} duplicates one "
+                f"already recorded this iteration; the judgement stands on "
+                f"its triage_decisions row and no second evidence row is "
+                f"written",
+                iteration_id=iteration_id, url=post["url"], city_id=city_id,
+                stream=post.get("stream"),
+            )
             return None
 
 

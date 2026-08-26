@@ -425,7 +425,7 @@ class TestSocialQueryBuilding:
         agent = make_agent(db, config)
         queries = dict(
             (endpoint, params)
-            for endpoint, params in agent.build_social_queries(
+            for _stream, endpoint, params in agent.build_social_queries(
                 "Phoenix", "AZ", ["AIRSHOW"]
             )
         )
@@ -437,7 +437,7 @@ class TestSocialQueryBuilding:
 
     def test_query_text_is_truncated_to_the_api_limit(self, db, config):
         agent = make_agent(db, config)
-        for _endpoint, params in agent.build_social_queries(
+        for _stream, _endpoint, params in agent.build_social_queries(
             "X" * 600, "AZ", ["AIRSHOW", "CONCERT_TOUR"]
         ):
             assert len(params["query"]) <= 500
@@ -445,7 +445,7 @@ class TestSocialQueryBuilding:
     def test_sentiment_is_off_by_default(self, db, config):
         """+$0.001/page for an eight-emotion vector that is not an indicator."""
         agent = make_agent(db, config)
-        for _endpoint, params in agent.build_social_queries(
+        for _stream, _endpoint, params in agent.build_social_queries(
             "Phoenix", "AZ", ["AIRSHOW"]
         ):
             assert "get_sentiment" not in params
@@ -453,11 +453,11 @@ class TestSocialQueryBuilding:
     def test_both_tracks_produce_distinct_lexicons(self, db, config):
         agent = make_agent(db, config)
         airshow = {
-            p["query"] for _e, p in agent.build_social_queries(
+            p["query"] for _s, _e, p in agent.build_social_queries(
                 "Phoenix", "AZ", ["AIRSHOW"])
         }
         concert = {
-            p["query"] for _e, p in agent.build_social_queries(
+            p["query"] for _s, _e, p in agent.build_social_queries(
                 "Phoenix", "AZ", ["CONCERT_TOUR"])
         }
         assert airshow and concert

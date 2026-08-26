@@ -34,15 +34,18 @@ Three kinds of gathering are watched, because they leave different traces:
 
 The engine runs an eight-stage iteration and records every step of it.
 
-1. **Seed.** Each city gets one social query per lexicon group per track — the
-   search terms in `lexicon.yaml`, OR-joined and paired with the place name.
+1. **Seed.** Each city gets one social query per stream, per lexicon group,
+   per track — the search terms in `streams.yaml`, OR-joined and paired with
+   the place name, sent to that stream's platforms.
 2. **Collect chatter.** Social and news results are stored as raw payloads.
    Nothing is judged yet, and nothing is paid for beyond the search.
-3. **Triage.** A language model reads each post once and answers a fixed
-   question: is this evidence of a gathering forming at a named place, which
-   place, which venue, which track, and how soon. It is the only place in the
-   system where free text becomes a record, and its answer is bound to an
-   opaque per-call id so a reply cannot be misattributed.
+3. **Triage.** A language model reads each post once per stream and answers a
+   fixed question: is this evidence of a gathering forming at a named place,
+   which place, which venue, which track, and how soon. The `local_news`
+   stream is judged under its own strict relevance leg — reporting, not talk.
+   It is the only place in the system where free text becomes a record, and
+   its answer is bound to an opaque per-call id so a reply cannot be
+   misattributed.
 4. **Tip.** A *relevant* post buys the expensive collection, and only then:
    inbound flights for the city's airports, room availability near the key
    location the model named, and rental-car availability at the airport. A post
@@ -79,19 +82,21 @@ its digest is stamped on every receipt.
 | File | What lives in it |
 |---|---|
 | `mission.yaml` | The manifest: id, version, description, the three tracks, the venue types a key location may be, the analytic thresholds this mission sets, and the four prompt slots with their version labels. |
-| `lexicon.yaml` | What to search for, per track — three query groups each, OR-joined and paired with a place name. A table rather than a model call, so "why did you search that" has an answer. |
+| `streams.yaml` | Two watches over the social feed: `chatter` (twitter + reddit, a sub-kind of the SOCIAL family) and `local_news` (news, promoted to its own LOCAL_NEWS banding family, with its own strict relevance leg). Each carries its per-track lexicon — a table rather than a model call, so "why did you search that" has an answer. |
 | `scoring.yaml` | What each kind of observation is worth to each track, which FR24 aircraft categories each track asks for, and which of those are measured against a baseline rather than counted. |
 | `geography.yaml` | Place names this mission treats as one operational unit, and regional publishers it recognises. Both are empty here: the synthetic mission claims no local knowledge. |
 | `facilities.yaml` | How a venue name the model wrote is matched to one the operator registered — spellings that mean the same place, and the words too generic to identify anything on their own. |
 | `hypotheses.yaml` | What else would produce this evidence, per signal family, with what in the correlation argues against it. Attached to every alert, so a reader is told the innocent explanation rather than left to think of it. |
 | `prompts/triage.md` | The screening prompt: what the tracks are, what to extract, and the exact JSON to return. Carries a `{relevance}` slot filled by one of the two below. |
 | `prompts/relevance-strict.md` | The default relevance test: a specific scheduled gathering at a named place, or its logistics. |
-| `prompts/relevance-broad.md` | The wider test, selected per session, which admits display aviation at a named place whether or not an event is named. |
+| `prompts/relevance-broad.md` | The wider test, selected per session, which admits display aviation at a named place whether or not an event is named. Inherited by both streams. |
+| `prompts/local-news-strict.md` | The `local_news` stream's own strict leg: someone REPORTING preparations as fact, not passing on talk of them. |
 | `prompts/alert.md` | How to write the warning sentence — plainly, concretely, without characterising confidence, which is attached separately as a number. |
 
 Carried alongside, neither read nor hashed: `README.md`, `docs/`, `inputs/`
 and `tests/`. This pack's `tests/` holds what it claims about **itself** — that
-it loads, that every track has a lexicon and a weight and a flight filter, and
+it loads, that every stream carries every track and every track a weight and
+a flight filter, and
 that between them the three tracks exercise every aircraft category the engine
 scores. The engine's `pytest.ini` collects them with the rest of the suite.
 

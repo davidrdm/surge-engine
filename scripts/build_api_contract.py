@@ -176,7 +176,9 @@ def _posts_in(prompt: str) -> list[dict[str, Any]]:
     if start < 0:
         return []
     try:
-        items = json.loads(prompt[start:])
+        # raw_decode: the array may be followed by the operator-calendar
+        # context block, which is prompt text rather than payload.
+        items = json.JSONDecoder().raw_decode(prompt, start)[0]
     except ValueError:
         return []
     return [item for item in items if isinstance(item, dict)]
@@ -396,10 +398,35 @@ def scenario(capture: Capture, clock: Clock) -> None:
                  note="A session may lower a spending cap and never raise "
                       "one. The budget being protected is the operator's.")
 
+    capture.call("01g-session-with-calendar", "POST", "/v1/sessions",
+                 body={"label": "with a calendar of scheduled events",
+                       "cities": SESSION_BODY["cities"],
+                       "tracks": ["AIRSHOW"],
+                       "calendar_set": "example-calendar"},
+                 note="`calendar_set` names a calendar of scheduled events in "
+                      "the same `inputs.dir` — context, never input: triage "
+                      "shows the events to the model as background and "
+                      "correlations record the ones overlapping their window, "
+                      "but no score or band ever moves. Same NAME-not-path "
+                      "rule and the same all-or-nothing loading as "
+                      "`input_set`.")
+
     capture.call("02-unauthenticated", "GET", f"/v1/sessions/{sid}",
                  headers={}, note="Every route except /v1/healthz needs the "
                                   "bearer token.")
     capture.call("03-read-session", "GET", f"/v1/sessions/{sid}")
+
+    capture.call("03b-append-calendar", "POST", f"/v1/sessions/{sid}/calendar",
+                 body={"calendar_set": "example-calendar"},
+                 note="Between iterations, never during one — each "
+                      "iteration's triage context is fixed at its start "
+                      "(`added_at <= started_at`), so events appended now "
+                      "join the NEXT run. Append-only: re-loading a grown "
+                      "file is the normal way to add, and events already "
+                      "present come back as warnings rather than errors.")
+    capture.call("03c-read-calendar", "GET", f"/v1/sessions/{sid}/calendar",
+                 note="Oldest addition first. `added_at` is what decides "
+                      "which iterations saw an event.")
 
     iteration = capture.call(
         "04-trigger-iteration", "POST",
@@ -408,6 +435,27 @@ def scenario(capture: Capture, clock: Clock) -> None:
              "continues on a worker; poll_url is the same either way.",
     )
     iid = iteration["iteration_id"]
+
+    # The guard reads the runner's active-iteration bookkeeping, which only a
+    # worker mid-run holds. A capture cannot deterministically pause a real
+    # worker thread here, so it stages exactly the entry the worker keeps for
+    # the duration of one call — the same in-process arranging the crash
+    # examples below use.
+    runner = capture.client.app.state.runner
+    runner._active[sid] = iid
+    try:
+        capture.call("04b-append-calendar-blocked", "POST",
+                     f"/v1/sessions/{sid}/calendar",
+                     body={"calendar_set": "example-calendar"},
+                     note="409 while an iteration runs, for the same reason "
+                          "as add-cities: each iteration's triage context is "
+                          "fixed at its start, and a mid-run append would "
+                          "make two batches of one run see different "
+                          "calendars. No Retry-After — appending is not "
+                          "urgent, and the remedy is simply 'between "
+                          "iterations'.")
+    finally:
+        runner._active.pop(sid, None)
 
     capture.call("05-poll-iteration", "GET", f"/v1/iterations/{iid}",
                  note="The poll target. `degradations` is what the run could "

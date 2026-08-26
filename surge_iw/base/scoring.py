@@ -129,15 +129,49 @@ class TrackModel:
     #: The FR24 category codes this track's flight queries ask for. Determines
     #: what an AMBIGUOUS record could have been, and therefore what it earns.
     flight_categories: tuple[str, ...]
+    #: The scoring kinds the mission's social feed produces — its stream ids,
+    #: or ("social",) for the implicit stream. Every one of them anchors.
+    social_kinds: tuple[str, ...] = ("social",)
+    #: kind -> banding family, covering the social kinds; everything else
+    #: falls back to the engine's KIND_FAMILY. What `distinct_types` counts.
+    kind_families: Mapping[str, str] = None  # type: ignore[assignment]
+    #: Every family this mission's evidence can occupy. Its length is the
+    #: data_completeness denominator.
+    families: tuple[str, ...] = FAMILIES
+
+    def __post_init__(self) -> None:
+        if self.kind_families is None:
+            object.__setattr__(
+                self, "kind_families", {k: "SOCIAL" for k in self.social_kinds})
+
+    def family_of(self, kind: str) -> str | None:
+        """The banding family a scoring kind counts as, or None if unknown.
+
+        A kind that is neither an engine kind nor one of this mission's social
+        kinds — a row written under a stream the pack has since renamed —
+        returns None: it scores zero and is named in the trace, and counting
+        it toward any family would let a stale row move `distinct_types`.
+        """
+        return self.kind_families.get(kind) or KIND_FAMILY.get(kind)
+
+    def kind_of(self, signal: Mapping[str, Any]) -> str | None:
+        """`scoring_kind`, resolved against this mission's social kinds."""
+        return scoring_kind(signal)
 
     @classmethod
     def from_mission(cls, mission: Any, name: str) -> "TrackModel":
         """Build the model for one of a loaded mission's tracks."""
         mission.track(name)
+        social_kinds = tuple(getattr(mission, "social_kinds", ("social",)))
+        stream_families = dict(getattr(mission, "stream_families", {})) or {
+            "social": "SOCIAL"}
         return cls(
             name=name,
             weights=dict(mission.weights[name]),
             flight_categories=tuple(mission.flight_categories[name]),
+            social_kinds=social_kinds,
+            kind_families=stream_families,
+            families=tuple(getattr(mission, "families", FAMILIES)),
         )
 
 
@@ -167,6 +201,14 @@ def ambiguous_flight_weight(track: TrackModel) -> float:
     reachable = {
         KIND_FLIGHT_M if code == "M" else KIND_FLIGHT_J for code in categories
     }
+    if not reachable:
+        # A track that flies in no category — or a mission that does not
+        # collect FLIGHT at all — earns nothing from a flight record. Reached
+        # only by a legacy row still inside the correlation window, and worth
+        # zero rather than a ValueError: the row stays visible in the evidence
+        # trail either way, which is the honest handling of evidence this
+        # mission has no weight for.
+        return 0.0
     return min(weights[kind] for kind in reachable)
 
 
@@ -203,7 +245,10 @@ def has_strong_anchor(track: TrackModel,
     prove its own category, so it must not stand in for the verified airframe
     the band rules are built around.
     """
-    if contributions.get(KIND_SOCIAL, 0.0) > 0.0:
+    if any(contributions.get(kind, 0.0) > 0.0 for kind in track.social_kinds):
+        # Every social-derived stream anchors, promoted family or not: each is
+        # "somebody said so" evidence naming an actor, which is exactly what
+        # booking scarcity cannot supply.
         return True
     return contributions.get(anchor_flight_kind(track), 0.0) > 0.0
 
@@ -212,7 +257,11 @@ def scoring_kind(signal: Mapping[str, Any]) -> str | None:
     """Which scoring kind a signal row contributes to, or None if it cannot."""
     signal_type = signal.get("signal_type")
     if signal_type == "SOCIAL":
-        return KIND_SOCIAL
+        # The row's stream IS its kind; NULL is the implicit stream. A stream
+        # the mission has since renamed still returns itself: it groups under
+        # its own name, earns the 0.0 an unknown weight row earns, and the
+        # trace names it — never silently reassigned to another stream.
+        return signal.get("stream") or KIND_SOCIAL
     if signal_type == "LODGING":
         return KIND_LODGING
     if signal_type == "CAR":
@@ -645,6 +694,11 @@ def kind_quality(
     baseline: float | None = None,
 ) -> float:
     """Quality for a group of same-kind signals, before the spatial penalty."""
+    if kind not in KIND_FAMILY:
+        # A mission stream: same arithmetic as the implicit social kind, over
+        # that stream's rows only. Streams are lenses over one feed — the
+        # weight is the mission's lever, the quality function is the engine's.
+        return social_quality(rows, cfg)
     if kind == KIND_SOCIAL:
         return social_quality(rows, cfg)
     if kind in (KIND_FLIGHT_M, KIND_FLIGHT_J, KIND_FLIGHT_AMBIGUOUS):
@@ -676,6 +730,7 @@ def kind_quality(
 def independent_reports(
     grouped: Mapping[str, Sequence[Mapping[str, Any]]],
     contributions: Mapping[str, float],
+    social_kinds: Sequence[str] = (KIND_SOCIAL,),
 ) -> int:
     """How many INDEPENDENT reports this correlation rests on (9.8).
 
@@ -702,8 +757,16 @@ def independent_reports(
     the score must not prop up the floor that decides whether the score alerts.
     """
     total = 0
-    if contributions.get(KIND_SOCIAL, 0.0) > 0.0:
-        publishers, claims = provenance.corroboration(grouped.get(KIND_SOCIAL, []))
+    # Every contributing social-derived kind, pooled into ONE publisher/claim
+    # count. Streams are lenses over one feed: a wire story surfacing in two
+    # of them is still one claim, and counting it per stream would let a
+    # mission manufacture the two-report floor by declaring a second lens.
+    social_rows: list[Mapping[str, Any]] = []
+    for kind in social_kinds:
+        if contributions.get(kind, 0.0) > 0.0:
+            social_rows.extend(grouped.get(kind, []))
+    if social_rows:
+        publishers, claims = provenance.corroboration(social_rows)
         total += min(publishers, claims)
 
     airframes: set[str] = set()
@@ -887,6 +950,7 @@ def correlate(
     failed_endpoints: Mapping[str, str] | None = None,
     collected_source_types: Iterable[str] = (),
     flight_baselines: Mapping[str, float] | None = None,
+    social_stream_gaps: Iterable[str | None] = (),
 ) -> CorrelationResult:
     """Score one city against one actor track.
 
@@ -956,9 +1020,14 @@ def correlate(
 
     score = round(min(1.0, sum(contributions.values())), 4)
     families = {
-        KIND_FAMILY[k] for k, v in contributions.items() if v > 0.0
+        family for family in (
+            track.family_of(k) for k, v in contributions.items() if v > 0.0)
+        if family is not None
     }
     distinct_types = len(families)
+    stray_kinds = sorted(
+        k for k in grouped
+        if track.family_of(k) is None and k not in KIND_FAMILY)
 
     has_anchor = has_strong_anchor(track, contributions)
 
@@ -966,7 +1035,7 @@ def correlate(
     # family. RAW counts, not decayed ones — "did two independent sources
     # report this" is a fact about the evidence, and letting age erode it would
     # conflate a structural gate with the score, which decay already moves.
-    reports = independent_reports(grouped, contributions)
+    reports = independent_reports(grouped, contributions, track.social_kinds)
 
     # 9.13. How old the evidence is, and whether any of it is this run's.
     #
@@ -1051,15 +1120,49 @@ def correlate(
         SOURCE_TYPE_FAMILY[st] for st in collected_source_types
         if st in SOURCE_TYPE_FAMILY
     }
-    failed_families = sorted(
-        {SOURCE_TYPE_FAMILY[st] for st in failed} - collected_families
-    )
+    failed_family_set = {SOURCE_TYPE_FAMILY[st] for st in failed}
+
+    # Per-stream social gaps, mapped to the family each stream occupies.
+    # `None` in the list means work whose stream cannot be established — a
+    # skipped stage, an unjudged post with no lineage — and conservatively
+    # gaps EVERY social-derived family: nothing ran for any of them, and
+    # attributing the loss to one would clear the others by guesswork. The
+    # display entry carries the stream (`SOCIAL(chatter):endpoint`) so a
+    # reader of the caveat sees which lens went dark.
+    social_families = {
+        family for family in (
+            track.family_of(k) for k in track.social_kinds)
+        if family is not None
+    }
+    for stream in (social_stream_gaps or ()):
+        if stream is None:
+            failed_family_set |= social_families
+            if "SOCIAL" not in failed and "SOCIAL" not in failed_sources:
+                failed_sources.append("SOCIAL")
+        else:
+            family = track.family_of(stream)
+            failed_family_set.add(family if family is not None else "SOCIAL")
+            failed_sources.append(f"SOCIAL({stream})")
+    failed_sources = sorted(set(failed_sources))
+
+    # A SOCIAL entry in the source-type gaps under a streams mission has no
+    # stream either; same conservative rule.
+    if "SOCIAL" in {SOURCE_TYPE_FAMILY.get(st) for st in failed} \
+            and len(track.social_kinds) > 1:
+        failed_family_set |= social_families
+
+    failed_families = sorted(failed_family_set - collected_families)
     completeness = round(
-        max(0.0, 1.0 - len(failed_families) / float(len(FAMILIES))), 4
+        max(0.0, 1.0 - len(failed_families) / float(len(track.families))), 4
     )
 
     band, trace = _band_for(score, distinct_types, has_anchor, cfg,
                             reports=reports)
+    if stray_kinds:
+        trace += (
+            f"; {sum(len(grouped[k]) for k in stray_kinds)} signal(s) carry "
+            f"stream(s) {', '.join(stray_kinds)} this mission does not "
+            f"define; scored at zero, visible above")
 
     # 9.5. The curve is part of how the number was reached, so it belongs in
     # the trace beside the band rule. Without it a reader comparing two alerts

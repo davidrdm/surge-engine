@@ -316,15 +316,22 @@ Social media and news. The only source seeded without a tip.
 |---|---|---|
 | `api_key_env` | `"APIDIRECT_API_KEY"` | Name of the environment variable holding the key. |
 | `base_url` | `"https://apidirect.io"` | API root. |
-| `platforms` | `["twitter", "reddit", "news"]` | Which platforms seeding queries. One query per platform, per lexicon group, per actor track. |
+| `platforms` | `["twitter", "reddit", "news"]` | Which platforms seeding may query. One query per platform, per lexicon group, per track, per stream; a mission stream's own platform list is intersected with this one. |
 | `twitter_pages` | `2` | `pages` on the twitter and reddit post endpoints. |
 | `news_limit` | `50` | `limit` on the news endpoint. |
 | `news_time_published` | `"7d"` | Server-side recency filter, supported on the news endpoint only. |
 | `get_sentiment` | `false` | Requests an eight-emotion vector alongside each post, on the twitter and reddit endpoints only. |
 | `retention_days` | `90` | How long raw payloads are kept before purge. |
 
+**`platforms` is also the deployment-wide kill switch for mission streams.**
+A stream's effective platform set is its declared platforms ∩ this list (a
+pack with no streams runs one implicit stream over exactly this list). A
+stream this setting empties is recorded per city as a `NO_MAPPING` refusal
+naming the stream, so disabling a platform never reads as a quiet city.
+
 **`platforms` drives the fan-out.** Two actor tracks × four lexicon groups ×
-three platforms is 24 social queries per city, which is what
+three platforms is 24 social queries per city — per stream, when the mission
+declares several — which is what
 `tipping.max_queries_per_city` and the budget envelope have to accommodate. A
 name with no endpoint mapping is skipped silently, so a typo here reduces
 coverage without any error — check the query count after changing it.
@@ -728,7 +735,7 @@ is broken" stay distinguishable downstream.
 
 | Parameter | Default | What it does |
 |---|---|---|
-| `dir` | `"./inputs"` | Directory `POST /v1/sessions` searches when a request names an `input_set`. |
+| `dir` | `"./inputs"` | Directory `POST /v1/sessions` searches when a request names an `input_set` — and a `calendar_set`: the operator calendar of scheduled events resolves in the same directory under the same rules, deliberately adding no config key. |
 
 **The API takes a name, not a path.** `{"input_set": "example"}` resolves
 to `<dir>/example.yaml`; anything containing a separator or `..` is

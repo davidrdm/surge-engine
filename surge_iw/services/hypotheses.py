@@ -77,9 +77,56 @@ CONDITIONS: frozenset[str] = frozenset({
 FAMILY_ORDER: tuple[str, ...] = ("LODGING", "CAR", "FLIGHT", "SOCIAL")
 
 
-def _families(signals: Iterable[Mapping[str, Any]]) -> set[str]:
-    return {str(row["signal_type"]) for row in signals
-            if row["signal_type"] is not None}
+def _families(signals: Iterable[Mapping[str, Any]],
+              mission: Any = None) -> set[str]:
+    """The banding families the evidence occupies.
+
+    For a SOCIAL row that is the family its STREAM counts as, when the
+    mission promotes one — a row of a promoted stream draws that family's
+    explanations, not SOCIAL's. A stream the mission no longer defines falls
+    back to SOCIAL: its evidence is still social-feed evidence, and the
+    social explanations are the honest set for it.
+    """
+    stream_families = dict(getattr(mission, "stream_families", {}) or {})
+    out: set[str] = set()
+    for row in signals:
+        family = row["signal_type"]
+        if family is None:
+            continue
+        if family == "SOCIAL":
+            stream = row["stream"] if "stream" in row.keys() else None
+            family = stream_families.get(stream, "SOCIAL") if stream else "SOCIAL"
+        out.add(str(family))
+    return out
+
+
+#: The one alternative the ENGINE writes: this window overlaps events the
+#: operator put on the calendar. Engine-owned because no mission can know the
+#: operator's calendar at authoring time, and reserved at pack load
+#: (`mission._hypotheses` refuses the code) so a mission entry can never be
+#: shadowed by — or mistaken for — the engine's. Offered whenever any family
+#: contributed: unlike SOLE_FAMILY reasoning, a scheduled crowd plausibly
+#: produces bookings, traffic AND chatter at once, so corroboration does not
+#: rule it out — the corroboration note is still appended, because an event
+#: explanation must account for every family all the same.
+SCHEDULED_EVENT_CODE = "SCHEDULED_EVENT"
+
+SCHEDULED_EVENT_STATEMENT = (
+    "The operator calendar lists {n} scheduled event(s) overlapping this "
+    "window: {events}. Ordinary activity around a scheduled event can "
+    "produce this evidence.")
+
+
+def _scheduled_event(
+    calendar_matches: Sequence[Mapping[str, Any]]) -> Alternative:
+    listed = "; ".join(
+        f"{str(m.get('name'))!r} in {m.get('city')} "
+        f"({m.get('starts_at')} to {m.get('ends_at')})"
+        for m in calendar_matches)
+    return Alternative(
+        SCHEDULED_EVENT_CODE,
+        SCHEDULED_EVENT_STATEMENT.format(n=len(calendar_matches),
+                                         events=listed))
 
 
 #: Appended when more than one family contributed. Engine-owned because it is
@@ -98,24 +145,35 @@ def for_correlation(
     signals: Sequence[Mapping[str, Any]],
     contributions: Mapping[str, float] | None = None,
     mission: Any = None,
+    calendar_matches: Sequence[Mapping[str, Any]] = (),
 ) -> list[dict[str, str]]:
     """The competing explanations this correlation's evidence admits.
 
     The mission writes the explanations, per family. The engine decides which
     of them this evidence actually admits: which families contributed, whether
-    more than one did, and whether any flight category was confirmed.
+    more than one did, and whether any flight category was confirmed. When the
+    operator calendar has events overlapping this window (`calendar_matches`,
+    the snapshots the correlation stored), the engine appends its ONE reserved
+    alternative, `SCHEDULED_EVENT`, after the mission's — last because the
+    mission's explanations were written for this track and the calendar note
+    is generic context.
 
     An empty list means no signal family contributed, which happens for a
     correlation scored entirely out of a coverage gap — and a list of
-    alternatives to nothing would be worse than silence.
+    alternatives to nothing would be worse than silence. That holds for the
+    calendar too: the matches are still on the correlation row, but an
+    "alternative explanation" for evidence that does not exist is not offered.
 
     Without a mission the list is empty rather than invented. A competing
     explanation the engine made up would read exactly like one an analyst
-    wrote.
+    wrote — the calendar alternative is the deliberate exception, because its
+    content is the operator's own words, quoted.
     """
-    families = _families(signals)
+    families = _families(signals, mission)
+    if not families:
+        return []
     catalogue = getattr(mission, "hypotheses", None) or {}
-    if not families or not catalogue:
+    if not catalogue and not calendar_matches:
         return []
 
     corroborated = len(families) > 1
@@ -126,7 +184,12 @@ def for_correlation(
         for row in signals)
 
     out: list[Alternative] = []
-    for family in FAMILY_ORDER:
+    # Promoted stream families read after SOCIAL, in the mission's declaration
+    # order: they are social-feed evidence promoted for banding, so a reader
+    # meets the physical families first, exactly as before.
+    order = FAMILY_ORDER + tuple(
+        f for f in getattr(mission, "families", ()) if f not in FAMILY_ORDER)
+    for family in order:
         if family not in families:
             continue
         for entry in catalogue.get(family, ()):
@@ -141,6 +204,13 @@ def for_correlation(
                 weakened = f"{weakened} {note}".strip()
             out.append(Alternative(str(entry["code"]),
                                    str(entry["statement"]), weakened))
+
+    if calendar_matches:
+        item = _scheduled_event(calendar_matches)
+        if corroborated:
+            note = CORROBORATION_NOTE.format(n=len(families))
+            item = Alternative(item.code, item.statement, note)
+        out.append(item)
 
     # Deduplicated by code: two families may offer the same explanation, and a
     # reader meeting it twice would read repetition as emphasis.

@@ -25,14 +25,41 @@ class TestItLoads:
     def test_the_manifest_is_valid_and_names_itself(self):
         loaded = mission_service.load(PACK)
         assert loaded.identifier == "reference"
-        assert loaded.label == "reference/1"
+        assert loaded.label == "reference/2"
 
-    def test_every_track_has_a_lexicon_a_weight_and_a_flight_filter(self):
+    def test_every_stream_carries_every_track_and_every_track_a_weight(self):
         loaded = mission_service.load(PACK)
+        assert loaded.streams, "version 2 is the streams exhibit"
+        for stream in loaded.streams:
+            for track in loaded.tracks:
+                assert stream.lexicon[track], f"{stream.id}/{track}"
         for track in loaded.tracks:
-            assert loaded.lexicon[track], track
             assert loaded.weights[track], track
             assert track in loaded.flight_categories, track
+
+    def test_it_shows_both_stream_shapes(self):
+        """The pack exists to exhibit the machinery, so it keeps one stream in
+        each shape: a sub-kind of SOCIAL and a promoted family — and the
+        promoted one carries its own relevance leg, so per-stream criteria
+        have a shipped example too."""
+        loaded = mission_service.load(PACK)
+        families = {s.id: s.family for s in loaded.streams}
+        assert families == {"chatter": "SOCIAL", "local_news": "LOCAL_NEWS"}
+        by_id = {s.id: s for s in loaded.streams}
+        assert set(by_id["local_news"].relevance) == {"relevance_strict"}
+        assert by_id["chatter"].relevance == {}
+
+    def test_the_stream_weights_preserve_the_v1_social_budget(self):
+        """The split is a refinement, not a rebalance: per track, the two
+        stream weights sum to what `social` carried in version 1, so scores
+        stay comparable across the pack bump."""
+        loaded = mission_service.load(PACK)
+        v1_social = {"CONCERT_TOUR": 0.40, "SPORTING_EVENT": 0.35,
+                     "AIRSHOW": 0.25}
+        for track, total in v1_social.items():
+            split = (loaded.weights[track]["chatter"]
+                     + loaded.weights[track]["local_news"])
+            assert abs(split - total) < 1e-9, track
 
 
 class TestItIsFitToBeTheEnginesFixture:

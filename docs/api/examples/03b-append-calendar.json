@@ -1,0 +1,71 @@
+{
+  "name": "03b-append-calendar",
+  "note": "Between iterations, never during one — each iteration's triage context is fixed at its start (`added_at <= started_at`), so events appended now join the NEXT run. Append-only: re-loading a grown file is the normal way to add, and events already present come back as warnings rather than errors.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions/1/calendar",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "calendar_set": "example-calendar"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "session_id": 1,
+      "events": [
+        {
+          "event_id": 5,
+          "name": "Downtown summer concert series",
+          "city": "Phoenix, AZ",
+          "city_canonical": "phoenix",
+          "starts_at": "2026-07-26T00:00:00+00:00",
+          "ends_at": "2026-07-28T23:59:59+00:00",
+          "category": "concert",
+          "note": "nightly, riverfront stage",
+          "source_name": "example-calendar.yaml",
+          "added_at": "2026-07-27T12:00:00+00:00"
+        },
+        {
+          "event_id": 6,
+          "name": "Desert Classic Festival",
+          "city": "Phoenix, AZ",
+          "city_canonical": "phoenix",
+          "starts_at": "2026-08-26T00:00:00+00:00",
+          "ends_at": "2026-08-30T23:59:59+00:00",
+          "category": "festival",
+          "note": "~120k attendance expected across three days",
+          "source_name": "example-calendar.yaml",
+          "added_at": "2026-07-27T12:00:00+00:00"
+        },
+        {
+          "event_id": 7,
+          "name": "Riverside Fairground autumn market",
+          "city": "Phoenix, AZ",
+          "city_canonical": "phoenix",
+          "starts_at": "2026-09-12T00:00:00+00:00",
+          "ends_at": "2026-09-12T23:59:59+00:00",
+          "category": "market",
+          "note": null,
+          "source_name": "example-calendar.yaml",
+          "added_at": "2026-07-27T12:00:00+00:00"
+        },
+        {
+          "event_id": 8,
+          "name": "Lakefront trade expo",
+          "city": "Chicago, IL",
+          "city_canonical": "chicago",
+          "starts_at": "2026-08-26T09:00:00+00:00",
+          "ends_at": "2026-08-30T18:00:00+00:00",
+          "category": "convention",
+          "note": null,
+          "source_name": "example-calendar.yaml",
+          "added_at": "2026-07-27T12:00:00+00:00"
+        }
+      ],
+      "warnings": []
+    }
+  }
+}

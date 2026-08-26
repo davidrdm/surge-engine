@@ -31,7 +31,7 @@ info:
     incomplete evidence, not a quieter one.
 
     '
-  version: 0.6.0
+  version: 0.3.0
 paths:
   /v1/sessions:
     post:
@@ -187,6 +187,137 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SessionOut'
+        '401':
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorOut'
+        '404':
+          description: No such session, iteration or alert.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorOut'
+        '409':
+          description: 'Refused because of current state: an iteration is already running for this session,
+            the iteration is not at the stage you asked for, or a paid stage needs an explicit confirm.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorOut'
+        '422':
+          description: The request was understood but cannot be acted on — an unknown stage or band, a
+            malformed timestamp, or a session with no cities.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorOut'
+        '503':
+          description: SURGE_API_TOKEN is not configured; the API refuses to serve without authentication
+            rather than serving without it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorOut'
+  /v1/sessions/{session_id}/calendar:
+    get:
+      tags:
+      - sessions
+      summary: Read Calendar
+      description: The session's operator calendar, oldest addition first.
+      operationId: read_calendar_v1_sessions__session_id__calendar_get
+      security:
+      - BearerToken: []
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Session Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarOut'
+        '401':
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorOut'
+        '404':
+          description: No such session, iteration or alert.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorOut'
+        '503':
+          description: SURGE_API_TOKEN is not configured; the API refuses to serve without authentication
+            rather than serving without it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - sessions
+      summary: Append Calendar
+      description: 'Append events between iterations, never during one.
+
+
+        Refused while an iteration runs for the same reason `add_cities` is: the
+
+        triage context is fixed per iteration at its start (`added_at <=
+
+        started_at`), and an append landing mid-run would make two batches of one
+
+        iteration see different calendars — receipts that disagree about what the
+
+        criteria-context was.
+
+
+        Events already on the session are warnings rather than errors, so
+
+        re-loading a grown file is a safe way to append. There is no delete: the
+
+        calendar is append-only precisely so earlier iterations'' prompts stay
+
+        reconstructible, and an event added in error is corrected by a new
+
+        session.'
+      operationId: append_calendar_v1_sessions__session_id__calendar_post
+      security:
+      - BearerToken: []
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Session Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalendarAppendIn'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarOut'
         '401':
           description: Missing or invalid bearer token.
           content:
@@ -2092,7 +2223,106 @@ components:
 
         four-element array in that exact order and the summary and confidence stay
 
-        addressable beside it rather than being appended as positions five and six.'
+        addressable beside it rather than being appended as positions five and six.
+
+
+        Mission streams do not change the shape: every social-feed observation —
+
+        whatever stream found it, and whatever family that stream counts as in
+
+        banding — lives in the first element, each entry carrying its `stream`.'
+    CalendarAppendIn:
+      properties:
+        calendar_set:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Calendar Set
+          description: NAME of a calendar file in `inputs.dir` (not a path). Loaded all-or-nothing; events
+            already on the session become warnings rather than errors, so re-loading a grown file is a
+            safe way to append.
+      additionalProperties: false
+      type: object
+      required:
+      - calendar_set
+      title: CalendarAppendIn
+      description: Append events from a calendar file, between iterations.
+    CalendarEventOut:
+      properties:
+        event_id:
+          type: integer
+          title: Event Id
+        name:
+          type: string
+          title: Name
+        city:
+          type: string
+          title: City
+          description: The city as the operator wrote it.
+        city_canonical:
+          type: string
+          title: City Canonical
+          description: The resolved form correlation matching keys on.
+        starts_at:
+          type: string
+          title: Starts At
+          description: Canonical ISO instant; a bare date in the file became 00:00Z.
+        ends_at:
+          type: string
+          title: Ends At
+          description: Canonical ISO instant; an omitted end became the end of the start's day.
+        category:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Category
+          description: The operator's own words; the engine constrains nothing here.
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        source_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Name
+          description: Which calendar file supplied it.
+        added_at:
+          type: string
+          title: Added At
+          description: 'When the event was appended. Load-bearing: an iteration''s triage context is exactly
+            the events with added_at <= its start, so later appends never change what an earlier receipt
+            hashed.'
+      type: object
+      required:
+      - event_id
+      - name
+      - city
+      - city_canonical
+      - starts_at
+      - ends_at
+      - added_at
+      title: CalendarEventOut
+    CalendarOut:
+      properties:
+        session_id:
+          type: integer
+          title: Session Id
+        events:
+          items:
+            $ref: '#/components/schemas/CalendarEventOut'
+          type: array
+          title: Events
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+      type: object
+      required:
+      - session_id
+      title: CalendarOut
     CancelIn:
       properties:
         requested_by:
@@ -2418,8 +2648,9 @@ components:
         data_completeness:
           type: number
           title: Data Completeness
-          description: Share of the four signal families collected at all. A family counts as missing
-            only when NOTHING in it was collected — see `failed_families`.
+          description: Share of the mission's signal families collected at all — the engine's four, plus
+            any stream the mission promotes to a family of its own. A family counts as missing only when
+            NOTHING in it was collected — see `failed_families`.
           default: 1.0
         band_capped:
           type: boolean
@@ -2430,8 +2661,9 @@ components:
             type: string
           type: array
           title: Failed Sources
-          description: Every failed collection as `SOURCE_TYPE:endpoint`, e.g. `LODGING:/search`. Finer
-            than `failed_families`, and does NOT drive `data_completeness`.
+          description: Every failed collection as `SOURCE_TYPE:endpoint`, e.g. `LODGING:/search`. A social
+            loss attributable to one mission stream appears as `SOCIAL(<stream>)`. Finer than `failed_families`,
+            and does NOT drive `data_completeness`.
         failed_families:
           items:
             type: string
@@ -2701,10 +2933,12 @@ components:
         data_completeness:
           type: number
           title: Data Completeness
-          description: 'Share of the four signal families that were collected at all. A family counts
-            as missing only when NOTHING in it was collected (9.11): if the lodging availability endpoint
-            failed and the price endpoint succeeded, lodging was measured and does not count against this.
-            Compute it as `1 - len(failed_families) / 4`.'
+          description: 'Share of the mission''s signal families collected at all — the engine''s four,
+            plus any stream the mission promotes to a family of its own; `GET /v1/capabilities` reports
+            the full list as `mission.families`. A family counts as missing only when NOTHING in it was
+            collected (9.11): if the lodging availability endpoint failed and the price endpoint succeeded,
+            lodging was measured and does not count against this. Compute it as `1 - len(failed_families)
+            / len(mission.families)`.'
           default: 1.0
         failed_sources:
           items:
@@ -2714,7 +2948,8 @@ components:
           description: Every failed collection as `SOURCE_TYPE:endpoint` — for example `LODGING:/search`.
             The endpoint is the query's ENTRY endpoint, so a lodging pairing shortfall that happens at
             `/availability` still reports `/search`; the query row's `skip_reason` carries the precise
-            cause. Where no endpoint was recorded the bare source type appears. This is finer than `failed_families`
+            cause. Where no endpoint was recorded the bare source type appears, and a social loss attributable
+            to one mission stream appears as `SOCIAL(<stream>)`. This is finer than `failed_families`
             and does NOT drive `data_completeness`.
         failed_families:
           items:
@@ -2750,6 +2985,19 @@ components:
             type: object
           - type: 'null'
           title: Evidence Freshness
+        config_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Config Hash
+          description: Fingerprint of the analytical configuration this score was computed under — the
+            same value the iteration's classification receipts carry, so a reader can confirm the arithmetic
+            and the model judgements ran under one set of tunables. Correlation involves no model and
+            therefore writes no receipt of its own; without this the settings behind a score lived only
+            in a config file that anyone may edit afterwards, and re-scoring a stored iteration could
+            silently produce different numbers. Compare it against `GET /v1/capabilities`; a mismatch
+            means the tunables have moved since, not that the score is wrong. Null on a correlation computed
+            before this was recorded.
         flight_baseline:
           anyOf:
           - additionalProperties: true
@@ -2769,6 +3017,20 @@ components:
             produces a visible absence rather than a plausible claim). Empty classes are omitted. The
             absence of `DIRECT` is the standing fact about this deployment: every provider here is an
             intermediary.'
+        calendar_matches:
+          anyOf:
+          - items:
+              additionalProperties: true
+              type: object
+            type: array
+          - type: 'null'
+          title: Calendar Matches
+          description: 'Operator-calendar events overlapping this correlation''s window, snapshotted verbatim
+            at scoring time (event_id, name, city, starts_at, ends_at, category, note, added_at) so the
+            row stays self-contained after later appends. ANNOTATION ONLY: nothing here moved the score
+            or the band — the SCHEDULED_EVENT entry in `alternatives` is where a reader is told a planned
+            event would produce the same pattern. `null` on a correlation computed before the feature
+            existed or for a session with no calendar; `[]` means a calendar exists and nothing matched.'
         signals:
           items:
             additionalProperties: true
@@ -3430,6 +3692,17 @@ components:
             — for example ''example''. Not a path: this field would otherwise be a file-disclosure primitive,
             and an authenticated caller is not thereby trusted with the filesystem. An unresolvable city
             in the file is refused by name, never silently dropped.'
+        calendar_set:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Calendar Set
+          description: 'NAME of a calendar file in the input directory (`inputs.dir`), without the extension.
+            Not a path, for the same reason as `input_set`. Scheduled events the operator already knows
+            about: shown to the triage model as context, recorded on any correlation whose window they
+            overlap, and NEVER an input to a score. More can be appended between iterations via `POST
+            /v1/sessions/{id}/calendar`.'
         expand_cities:
           type: boolean
           title: Expand Cities
@@ -3495,6 +3768,12 @@ components:
             $ref: '#/components/schemas/CityOut'
           type: array
           title: Cities
+        calendar_events:
+          type: integer
+          title: Calendar Events
+          description: How many operator-calendar events this session holds. `GET /v1/sessions/{id}/calendar`
+            lists them; they are context for triage and annotation on correlations, never a scoring input.
+          default: 0
         warnings:
           items:
             type: string

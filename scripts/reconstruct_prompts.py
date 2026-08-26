@@ -41,10 +41,11 @@ from typing import Any, Mapping, Sequence
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from surge_iw.agents import alerting                      # noqa: E402
-from surge_iw.agents.triage import build_system_prompt     # noqa: E402
+from surge_iw.agents.triage import _representative, build_system_prompt     # noqa: E402
 from surge_iw.config import load_with_mission              # noqa: E402
 from surge_iw.agents.triage_schema import build_request    # noqa: E402
 from surge_iw.services import receipts                     # noqa: E402
+from surge_iw.services.calendar import context_block       # noqa: E402
 
 #: Appended by `LLMAgent._call_llm_json`, not by either prompt builder, and part
 #: of the system message that was actually transmitted.
@@ -104,11 +105,13 @@ def triage_leg(prompt_hash: str) -> tuple[str, str] | None:
     was actually in force.
     """
     mission = _mission()
-    for nexus in (True, False):
-        prompt, version = build_system_prompt(
-            mission, {"triage": {"require_nexus": nexus}})
-        if receipts.sha256_hex(prompt) == prompt_hash:
-            return prompt, version
+    candidates: list[Any] = [None] + list(getattr(mission, "streams", ()))
+    for stream in candidates:
+        for nexus in (True, False):
+            prompt, version = build_system_prompt(
+                mission, {"triage": {"require_nexus": nexus}}, stream)
+            if receipts.sha256_hex(prompt) == prompt_hash:
+                return prompt, version
     return None
 
 
@@ -179,10 +182,12 @@ def gather_order(conn: sqlite3.Connection, iteration_id: int) -> dict[str, int]:
     Derived from the payloads rather than from `triage_skips`, so it works for
     iterations that ran before the skip record existed.
     """
-    position: dict[str, int] = {}
+    position: dict[tuple[str | None, str], int] = {}
     for raw in conn.execute(
-        "SELECT raw_id, payload_json FROM raw_results "
-        "WHERE iteration_id = ? AND source_type = 'SOCIAL' ORDER BY raw_id",
+        "SELECT r.raw_id, r.payload_json, q.stream AS stream "
+        "FROM raw_results r LEFT JOIN query_queue q ON q.query_id = r.query_id "
+        "WHERE r.iteration_id = ? AND r.source_type = 'SOCIAL' "
+        "ORDER BY r.raw_id",
         (iteration_id,),
     ):
         try:
@@ -195,17 +200,19 @@ def gather_order(conn: sqlite3.Connection, iteration_id: int) -> dict[str, int]:
             if not isinstance(item, Mapping):
                 continue
             url = str(item.get("url") or "").strip()
-            if url and url not in position:
-                position[url] = len(position)
+            if url and (raw["stream"], url) not in position:
+                position[(raw["stream"], url)] = len(position)
     return position
 
 
 def post_by_url(conn: sqlite3.Connection, iteration_id: int) -> dict[str, dict]:
     """The stored post for each URL, with its `raw_id`, as triage saw it."""
-    posts: dict[str, dict] = {}
+    copies: dict[tuple[str | None, str], list[dict]] = {}
     for raw in conn.execute(
-        "SELECT raw_id, payload_json FROM raw_results "
-        "WHERE iteration_id = ? AND source_type = 'SOCIAL' ORDER BY raw_id",
+        "SELECT r.raw_id, r.payload_json, q.stream AS stream "
+        "FROM raw_results r LEFT JOIN query_queue q ON q.query_id = r.query_id "
+        "WHERE r.iteration_id = ? AND r.source_type = 'SOCIAL' "
+        "ORDER BY r.raw_id",
         (iteration_id,),
     ):
         try:
@@ -218,9 +225,15 @@ def post_by_url(conn: sqlite3.Connection, iteration_id: int) -> dict[str, dict]:
             if not isinstance(item, Mapping):
                 continue
             url = str(item.get("url") or "").strip()
-            if url and url not in posts:
-                posts[url] = {**item, "raw_id": int(raw["raw_id"]), "url": url}
-    return posts
+            if url:
+                copies.setdefault((raw["stream"], url), []).append(
+                    {**item, "raw_id": int(raw["raw_id"]), "url": url,
+                     "stream": raw["stream"]})
+    # The copy triage actually judged, chosen by the SAME rule `_gather`
+    # applies — dated first, freshest, then first seen. First-occurrence was
+    # good enough while copies were interchangeable; the representative rule
+    # made which copy wins part of what the receipt hashed.
+    return {key: _representative(items) for key, items in copies.items()}
 
 
 def check_accepted(entry: dict[str, Any], receipt: Any) -> None:
@@ -256,6 +269,28 @@ def check_accepted(entry: dict[str, Any], receipt: Any) -> None:
             "byte-exact.")
 
 
+def calendar_suffix(conn: sqlite3.Connection, iteration_id: int) -> str:
+    """The operator-calendar block exactly as triage appended it, or "".
+
+    The same cut the agent used: events with `added_at <= started_at`, in
+    `(added_at, event_id)` order, rendered by the same pure function. Events
+    appended AFTER this iteration started are excluded — which is why the
+    block stays byte-reconstructible however much the calendar has grown
+    since: rows are immutable and the filter is a stored timestamp.
+    """
+    iteration = conn.execute(
+        "SELECT session_id, started_at FROM iterations "
+        "WHERE iteration_id = ?", (iteration_id,)).fetchone()
+    if iteration is None:
+        return ""
+    rows = conn.execute(
+        "SELECT * FROM calendar_events WHERE session_id = ? "
+        "AND added_at <= ? ORDER BY added_at, event_id",
+        (iteration["session_id"], iteration["started_at"])).fetchall()
+    block = context_block(rows)
+    return f"\n{block}" if block else ""
+
+
 def rebuild_triage(conn: sqlite3.Connection, iteration_id: int) -> list[dict]:
     """One entry per triage call, verified against its receipt."""
     # Bind to the pack this ITERATION ran under, not the one
@@ -265,6 +300,7 @@ def rebuild_triage(conn: sqlite3.Connection, iteration_id: int) -> list[dict]:
     out: list[dict] = []
     order = gather_order(conn, iteration_id)
     posts = post_by_url(conn, iteration_id)
+    calendar = calendar_suffix(conn, iteration_id)
 
     for receipt in receipts_for(conn, iteration_id, "TRIAGE"):
         entry: dict[str, Any] = {"receipt": receipt, "problems": []}
@@ -281,7 +317,7 @@ def rebuild_triage(conn: sqlite3.Connection, iteration_id: int) -> list[dict]:
             entry["system"], entry["version"] = leg[0] + JSON_SUFFIX, leg[1]
 
         rows = list(conn.execute(
-            "SELECT url, raw_id FROM triage_decisions "
+            "SELECT url, raw_id, stream FROM triage_decisions "
             "WHERE receipt_id = ? ORDER BY triage_id", (receipt["receipt_id"],)))
         if not rows:
             entry["problems"].append(
@@ -290,7 +326,8 @@ def rebuild_triage(conn: sqlite3.Connection, iteration_id: int) -> list[dict]:
             out.append(entry)
             continue
 
-        missing = [r["url"] for r in rows if r["url"] not in posts]
+        missing = [r["url"] for r in rows
+                   if (r["stream"], r["url"]) not in posts]
         if missing:
             entry["problems"].append(
                 f"{len(missing)} post(s) in this batch are no longer in any "
@@ -299,12 +336,14 @@ def rebuild_triage(conn: sqlite3.Connection, iteration_id: int) -> list[dict]:
             out.append(entry)
             continue
 
-        batch = sorted((posts[r["url"]] for r in rows),
-                       key=lambda p: order.get(p["url"], 1 << 30))
+        batch = sorted(
+            (posts[(r["stream"], r["url"])] for r in rows),
+            key=lambda p: order.get((p.get("stream"), p["url"]), 1 << 30))
         payload, _index = build_request(batch, iteration_id)
         entry["payload"] = payload
         entry["user"] = (f"Screen these {len(payload)} items.\n\n"
-                         f"{json.dumps(list(payload), indent=1)}")
+                         f"{json.dumps(list(payload), indent=1)}"
+                         f"{calendar}")
         entry["input_ok"] = receipts.evidence_hash(payload) == receipt["input_hash"]
         entry["batch_ok"] = receipts.sha256_hex(
             ",".join(str(p["item_id"]) for p in payload), length=16

@@ -1,0 +1,53 @@
+# Surge I&W — operator calendar of scheduled events
+#
+# Context, never input: TriageAgent shows these events to the model as
+# background it may cite in a rationale, and CorrelationAgent records the ones
+# that overlap a scored window on the correlation. **Nothing here ever moves a
+# score or a band** — the calendar says what was supposed to happen, so a
+# reader can weigh a surge against it deliberately.
+#
+#   python run.py session create --from example --calendar example-calendar
+#   python run.py session add-calendar 1 --from example-calendar
+#
+# Or over the API: `calendar_set` at session creation, then
+# `POST /v1/sessions/{id}/calendar` between iterations. Once stored, events
+# are append-only — re-loading a grown copy of this file is the normal way to
+# add; events already present become warnings, not errors.
+#
+# Format
+# ------
+# The key is the jurisdiction, same resolution rules as the input set: an
+# unresolvable city is REFUSED BY NAME, all-or-nothing. Each event:
+#
+#   name:      required
+#   starts:    required — a date (whole day) or an ISO datetime
+#   ends:      optional — defaults to the end of `starts`' day
+#   category:  optional, your words; stored and shown, never interpreted
+#   note:      optional free text, shown alongside the event
+#
+# A city listed here but not (yet) in the session is fine — cities are
+# appendable too, and the events wait.
+#
+# This file is an EXAMPLE, shipped so the engine has something to load with no
+# real deployment present. The events are fictional.
+
+Phoenix, AZ:
+  - name: Downtown summer concert series
+    starts: 2026-07-26
+    ends: 2026-07-28
+    category: concert
+    note: nightly, riverfront stage
+  - name: Desert Classic Festival
+    starts: 2026-08-26
+    ends: 2026-08-30
+    category: festival
+    note: ~120k attendance expected across three days
+  - name: Riverside Fairground autumn market
+    starts: 2026-09-12
+    category: market
+
+Chicago, IL:
+  - name: Lakefront trade expo
+    starts: 2026-08-26T09:00:00Z
+    ends: 2026-08-30T18:00:00Z
+    category: convention

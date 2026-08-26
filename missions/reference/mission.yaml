@@ -16,17 +16,18 @@
 # and no operational judgement should be drawn from a run against this pack.
 
 id: reference
-version: "1"
+version: "2"
 
 description: >
   Synthetic crowd-convergence mission used by the test suite and by contract
   generation. Detects a large scheduled gathering forming in a city from the
-  same four families a real mission would use: chatter and local news, inbound
-  charter and display aviation, lodging scarcity near the venue, and rental
-  fleet drawdown at the airport.
+  families a real mission would use: social chatter and local news reporting
+  (two streams over one feed, the second promoted to its own banding family),
+  inbound charter and display aviation, lodging scarcity near the venue, and
+  rental fleet drawdown at the airport.
 
 files:
-  - lexicon.yaml
+  - streams.yaml
   - scoring.yaml
   - geography.yaml
   - facilities.yaml
@@ -34,6 +35,7 @@ files:
   - prompts/triage.md
   - prompts/relevance-strict.md
   - prompts/relevance-broad.md
+  - prompts/local-news-strict.md
   - prompts/alert.md
 
 # Who this mission is looking for. Any number of tracks is legal; each is

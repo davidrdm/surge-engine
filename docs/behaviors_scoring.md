@@ -38,6 +38,10 @@ change it to ask a different question it is in the pack.
   - [Every post that never reached the model](#every-post-that-never-reached-the-model)
   - [Recovering judgements a model failure lost](#recovering-judgements-a-model-failure-lost)
 - [Defining a session's geography](#defining-a-sessions-geography)
+- [Streams over the social feed (v0.2)](#streams-over-the-social-feed-v02)
+- [The operator calendar (v0.2)](#the-operator-calendar-v02)
+  - [One observation, two places](#one-observation-two-places)
+  - [What produced a score](#what-produced-a-score)
 - [Tipping and queuing](#tipping-and-queuing)
 - [Correlation and confidence](#correlation-and-confidence)
   - [A correlation that becomes no alert](#a-correlation-that-becomes-no-alert)
@@ -386,6 +390,115 @@ method that produced it are settled before any collection is planned. Key
 locations stay free text: there is no geocoder here, the lodging search string is
 built from the name and facility matching compares against it, so pinning
 coordinates would record a resolution nobody performed.
+
+---
+
+## Streams over the social feed (v0.2)
+
+One feed, several watches. A mission may declare named **streams** over the
+social feed (`streams.yaml`), each with its own platform subset, per-track
+lexicon, and optionally its own relevance criteria. The engine's storage
+vocabulary does not grow: every stream row is `signal_type = 'SOCIAL'` with the
+stream id in a plain `stream` column, validated through the mission funnel and
+never in a CHECK constraint. Five clauses carry the semantics; the authoring
+view is [`missions.md`](missions.md).
+
+**A stream is its own scoring kind, judged under its own criteria.** Fan-out is
+per stream (its platforms ∩ the operator's `apidirect.platforms`), and triage
+batches per stream, so each receipt's `prompt_hash` names the criteria that
+judged it. The same URL appearing in two streams is judged once *per stream* —
+different questions about one document are different judgements — and two
+streams issuing an identical query each pay for their own fetch, because
+deduplicating the second would make its coverage silently depend on the first's.
+
+**`family` decides membership, never quality.** A stream is a sub-kind of the
+SOCIAL family unless the mission promotes it to a family of its own; promotion
+changes which family it counts toward in `distinct_types`, the
+`data_completeness` denominator, which family its failures gap, and which
+hypotheses it draws — its weight and quality arithmetic are per-stream either
+way, and any stream contribution anchors banding (promoted or not, it is still
+"somebody said so" evidence).
+
+**Corroboration pools the union.** Independent publishers and distinct claims
+are counted over all stream rows together, so one wire story carried by two
+streams stays one claim — streams are lenses, and a lens must not manufacture a
+second witness.
+
+**Failures gap per stream.** A lost query, an unjudged batch or a disabled
+stream reaches the correlation as that stream's family, displayed
+`SOCIAL(<stream>):<endpoint>`; a social loss with no stream lineage
+conservatively gaps every social-derived family. A stream emptied by the
+operator's platform kill-switch records a `NO_MAPPING` refusal naming it —
+absent, not quiet.
+
+**No streams means v0.1, byte for byte.** A pack with only `lexicon.yaml` runs
+one implicit stream: identical dedup keys, identical prompts, identical kinds
+and scores, pinned by equivalence tests — and a pack declaring one stream named
+`social` over all platforms is the same session spelled explicitly.
+
+---
+
+## The operator calendar (v0.2)
+
+The system has no notion of what is *supposed* to happen; the operator may.
+A session can carry a calendar of scheduled events (`calendar_set` at creation,
+or appended between iterations), and the engine's whole use of it is
+**annotation**: triage shows the events to the model as context it may cite in
+a rationale, and each correlation stores verbatim snapshots of the events
+overlapping its window, with one reserved competing explanation
+(`SCHEDULED_EVENT`) and a rule-trace line. **No score, band, contribution or
+completeness ever moves** — a correlation scored with a calendar and one scored
+without are numerically identical, and a test pins exactly that. The judgement
+"this surge is probably the festival" belongs to a reader who can see both; an
+engine that discounted evidence near scheduled events would be an engine that
+can be blinded by anyone who schedules something.
+
+Reconstruction survives the calendar growing. The context block triage appends
+is a pure function of append-only rows filtered by
+`added_at <= iteration.started_at` — no windowing, no city filter, no clock —
+so `prompt_user_hash` verifies byte-exact forever, and an append lands in the
+next iteration's context rather than mutating this one's. Appending during an
+iteration is refused (409) for the same reason adding cities is: one run, one
+calendar. Correlation-side windowing *is* applied when matching (overlap with
+`[anchor − window_hours, anchor + near_term_hours]`, by canonical city), and is
+safe there because the matches are stored on the row — a later config change
+cannot silently reframe an old correlation. `calendar_matches` distinguishes
+`null` (no calendar to consult) from `[]` (consulted, nothing overlapped),
+because those are different facts.
+
+### One observation, two places
+
+A judgement is about a post; a signal is about a place. A post announcing
+shows in two of a session's cities produces **one decision and one signal per
+city** — correlation scores each city over its own rows, so the two can never
+meet in one number, and a city named in the evidence must not be scored as
+though it were not.
+
+Until v16 the signal dedup index keyed on (iteration, type, stream, URL) with
+no city, so the second city's row was refused and *which* city kept the
+evidence was decided by the order the model happened to list them in. A live
+run found it: a tour announcement naming both session cities became evidence
+for one, and the other lost a report with no queue decision, no skip row and
+no log line. The index now includes the city, and a genuine duplicate — the
+same observation about the same place, which a re-run legitimately produces —
+is still refused, but says so in the log.
+
+### What produced a score
+
+Correlation is the one judgement this system makes without a model, which is
+the point of it — but it also means it writes no classification receipt, and
+for a while nothing recorded the tunables behind a number. Re-scoring a stored
+iteration could produce different figures with nothing on the row to say
+whether the engine or the operator's config file had moved underneath it.
+Every correlation now carries `config_hash`, the same analytical-configuration
+fingerprint the iteration's receipts carry, so the arithmetic and the model
+judgements can be shown to have run under one set of settings.
+
+A session also records the mission version it was created under. The pack may
+move — that is what versions are for — but an iteration running under a
+different definition than its session recorded logs a warning naming both,
+because scores either side of a pack bump are not comparable without reading
+both packs.
 
 ---
 

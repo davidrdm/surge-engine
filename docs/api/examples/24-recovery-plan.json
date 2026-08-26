@@ -13,7 +13,7 @@
     "status": 200,
     "body": {
       "iteration_id": 3,
-      "session_id": 4,
+      "session_id": 5,
       "resume_from": "COLLECTING_TIPPED",
       "derived_by": "RECONCILED",
       "stage_pointer": "COLLECTING_TIPPED",
@@ -21,20 +21,20 @@
       "paid": true,
       "queries_to_recollect": [
         {
-          "query_id": 54,
+          "query_id": 39,
           "source_type": "FLIGHT_LIVE",
           "endpoint": "/api/live/flight-positions/full",
           "provider": "FR24",
-          "city_id": 6,
+          "city_id": 7,
           "status": "IN_PROGRESS",
           "reason": "claimed but never recorded"
         },
         {
-          "query_id": 55,
+          "query_id": 40,
           "source_type": "CAR",
           "endpoint": "/cars/search",
           "provider": "PRICELINE",
-          "city_id": 6,
+          "city_id": 7,
           "status": "PENDING",
           "reason": "never claimed"
         }

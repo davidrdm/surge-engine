@@ -1,0 +1,55 @@
+# The social feed, split into two watches.
+#
+# Version 2 of this pack replaces the single lexicon with named streams, so the
+# engine's streams machinery has a shipped exhibit: `chatter` watches the
+# conversational platforms as a sub-kind of the SOCIAL family, and
+# `local_news` watches the news feed as a PROMOTED family of its own —
+# reporting that an event is being prepared is different evidence from people
+# talking about it, and the mission wants it in its own banding slot.
+#
+# Each stream carries its own per-track lexicon (same shape and rules the old
+# lexicon.yaml had; a group's terms are OR-joined and paired with a place
+# name). The same rationale as before: a table, not a model call — someone
+# asking "why did you search that" deserves a better answer than "the model
+# chose it".
+#
+# Nothing here is calibrated. See mission.yaml.
+
+# People talking about a gathering: announcements ahead of it, and the crowd
+# assembling around it. Judged under the mission's own relevance legs.
+chatter:
+  platforms: [twitter, reddit]
+  # family omitted -> SOCIAL: a sub-kind of the social family, exactly as the
+  # implicit stream was.
+  lexicon:
+    CONCERT_TOUR:
+      - ["tour dates", "tour announcement", "concert tickets"]
+      - ["stadium show", "arena show", "sold out show"]
+    SPORTING_EVENT:
+      - ["championship game", "playoff game", "title match"]
+      - ["team charter", "travelling supporters", "away fans"]
+    AIRSHOW:
+      - ["air show", "airshow", "flying display"]
+      - ["demonstration team", "aerobatic team", "display season"]
+
+# Local reporting of the logistics: the load-in, the road closure, the
+# airspace notice. Promoted to its own family because a newsroom confirming
+# preparations corroborates chatter rather than repeating it — and the strict
+# relevance leg is overridden to say what counts as reporting.
+local_news:
+  platforms: [news]
+  family: LOCAL_NEWS
+  relevance_strict:
+    file: prompts/local-news-strict.md
+    version: reference-relevance/2-news-strict
+  # relevance_broad is inherited from the mission's own broad leg.
+  lexicon:
+    CONCERT_TOUR:
+      - ["load-in", "stage build", "production trucks"]
+      - ["road closure", "event permit", "traffic advisory"]
+    SPORTING_EVENT:
+      - ["stadium capacity", "match day", "kickoff time"]
+      - ["road closure", "park and ride", "traffic advisory"]
+    AIRSHOW:
+      - ["static display", "flightline", "practice day"]
+      - ["airspace restriction", "temporary flight restriction", "noise advisory"]

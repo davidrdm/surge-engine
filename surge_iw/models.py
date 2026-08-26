@@ -39,6 +39,9 @@ class SocialPost:
     url: str = ""
     author: str = ""
     platform: str = ""
+    #: Which mission stream produced this observation; "" for the implicit
+    #: stream (a pre-stream row, or a mission that declares none).
+    stream: str = ""
     source_domain: str = ""
     observed_at: str = ""
     snippet: str = ""
@@ -52,6 +55,7 @@ class SocialPost:
             url=_get(row, "url", ""),
             author=_get(row, "author", ""),
             platform=_get(row, "platform", ""),
+            stream=_get(row, "stream", "") or "",
             source_domain=_get(row, "source_domain", ""),
             observed_at=_get(row, "observed_at", ""),
             snippet=_get(row, "snippet", ""),

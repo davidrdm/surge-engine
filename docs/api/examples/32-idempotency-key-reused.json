@@ -3,7 +3,7 @@
   "note": "Same key, different body: refused. Replaying the old response would let the caller believe it started a run with its new parameters.",
   "request": {
     "method": "POST",
-    "path": "/v1/sessions/5/iterations",
+    "path": "/v1/sessions/6/iterations",
     "headers": {
       "Authorization": "Bearer example-token",
       "Idempotency-Key": "contract-demo-key-01"

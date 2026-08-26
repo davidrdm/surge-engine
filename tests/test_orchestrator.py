@@ -158,8 +158,12 @@ def wiring(db, config):
             parse_rental_car_response(fixture("priceline_cars.json")),
         ),
     }
-    llm = FakeLLM([decision("https://x.com/1", "Phoenix"),
-                   decision("https://apnews.com/2", "Phoenix")])
+    # One batch PER STREAM: the reference pack watches the feed twice since
+    # version 2, and each stream judges its own copy of the posts under its
+    # own prompt.
+    batch = [decision("https://x.com/1", "Phoenix"),
+             decision("https://apnews.com/2", "Phoenix")]
+    llm = FakeLLM(*[list(batch) for _ in range(8)])
     return session, city, connectors, llm
 
 
@@ -461,6 +465,37 @@ class TestFailureIsolation:
             "SELECT * FROM query_queue WHERE iteration_id = ? AND status IN "
             "('FAILED','SKIPPED_BUDGET','SKIPPED_NO_MAPPING')", (iteration,))
         assert (outcome == "COMPLETE") == (not gaps)
+
+
+class TestTheMissionMovedUnderneath:
+    """A session records the definition it was created under. The pack can
+    move — that is what versions are for — but a session scored under a
+    different definition than it was created under has had an analytical
+    decision made for it, and this system does not make those in silence.
+    Found live: a `reference/1` session ran under `reference/2`, which had
+    split the social weight row into two streams."""
+
+    def test_a_changed_mission_label_is_announced(self, db, config, wiring):
+        session, _city, connectors, llm = wiring
+        db.conn.execute("UPDATE sessions SET mission = 'reference/1' "
+                        "WHERE session_id = ?", (session,))
+        db.conn.commit()
+        iteration = build(db, config, connectors, llm).start(session)
+        warnings = [r["message"] for r in db.all(
+            "SELECT message FROM agent_log WHERE iteration_id = ? "
+            "AND level = 'WARNING'", (iteration,))]
+        assert any("created under mission reference/1" in w
+                   and "running under reference/2" in w for w in warnings), \
+            warnings
+
+    def test_an_unchanged_mission_says_nothing(self, db, config, wiring):
+        """The warning has to stay rare enough to mean something."""
+        session, _city, connectors, llm = wiring
+        iteration = build(db, config, connectors, llm).start(session)
+        assert not [r for r in db.all(
+            "SELECT message FROM agent_log WHERE iteration_id = ? "
+            "AND level = 'WARNING'", (iteration,))
+            if "created under mission" in r["message"]]
 
 
 class TestResume:

@@ -281,12 +281,45 @@ class IterationOrchestrator:
         iteration_id = self.db.insert_iteration(
             session_id, owner_epoch_id=epoch_id
         )
+        self._warn_if_mission_moved(session, iteration_id)
         self.budget.seed_budgets()
         self._reconcile_remote_budgets(iteration_id)
         self.budget.plan_iteration(iteration_id)
         self._log("INFO", f"Iteration {iteration_id} created",
                   iteration_id=iteration_id, session_id=session_id)
         return iteration_id
+
+    def _warn_if_mission_moved(self, session: Any, iteration_id: int) -> None:
+        """Say so when this session's definition is not the one loaded now.
+
+        A session records the mission label it was created under, because a
+        track name is meaningless without the definition that gave it meaning.
+        The pack can legitimately move underneath it — a mission is versioned
+        precisely so it can — and refusing here would strand a running session
+        on a pack bump. But a session created under one definition and scored
+        under another has had an analytical decision made for it, and this
+        system does not make those in silence.
+
+        Found live: a session recorded `reference/1` ran under `reference/2`,
+        which had split the social weight row into two streams. Every receipt
+        named the pack it actually used, so the judgements were auditable —
+        but nothing anywhere said the definition had changed mid-session.
+        """
+        recorded = session["mission"] if "mission" in session.keys() else None
+        mission = getattr(self.db, "mission", None)
+        current = getattr(mission, "label", None)
+        if not recorded or not current or recorded == current:
+            return
+        self._log(
+            "WARNING",
+            f"Session {int(session['session_id'])} was created under mission "
+            f"{recorded} and is running under {current}. Weights, lexicon and "
+            f"prompts may have moved; scores from this iteration are not "
+            f"comparable to earlier ones without reading both packs",
+            iteration_id=iteration_id,
+            session_id=int(session["session_id"]),
+            session_mission=recorded, loaded_mission=current,
+        )
 
     def run(
         self, iteration_id: int, from_stage: str | None = None,

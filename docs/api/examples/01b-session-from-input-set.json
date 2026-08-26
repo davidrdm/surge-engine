@@ -58,6 +58,7 @@
           "pickup_location": "ORD"
         }
       ],
+      "calendar_events": 0,
       "warnings": [
         "loaded 2 city/cities from inputs/example.yaml"
       ],

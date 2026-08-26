@@ -37,6 +37,7 @@
           "pickup_location": "PHX"
         }
       ],
+      "calendar_events": 0,
       "warnings": [],
       "tunables": {},
       "config_hash": "a1ff6aeb4be4b32adf5912a18a3121da"

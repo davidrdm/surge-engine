@@ -144,30 +144,36 @@ class TestPhase3Gate:
 
         # --- Stage 3: triage ------------------------------------------------
         db.set_stage(iteration, "TRIAGING")
-        llm = FakeLLM(all_decisions())
+        # One response per STREAM batch: since pack version 2 the reference
+        # mission watches the feed twice (chatter, local_news), and each
+        # stream judges its own copy of the posts under its own prompt.
+        llm = FakeLLM(all_decisions(), all_decisions())
         assert TriageAgent(db, config, llm).run(iteration) is True
 
         decisions = db.all("SELECT * FROM triage_decisions WHERE iteration_id = ?",
                            (iteration,))
         urls = {d["url"] for d in decisions}
-        # A decision row for EVERY distinct post, accepted or rejected.
+        # A decision row for EVERY distinct post, accepted or rejected —
+        # once per stream, because the streams ask different questions.
         assert urls == {p["url"] for p in PHOENIX_POSTS + TUCSON_POSTS}
         assert all(d["rationale"] for d in decisions)
+        assert {d["stream"] for d in decisions} == {"chatter", "local_news"}
 
         accepted = [d for d in decisions if d["relevant"] == 1]
         rejected = [d for d in decisions if d["relevant"] == 0]
-        assert len(accepted) == 3
-        assert len(rejected) == 2
+        assert len(accepted) == 3 * 2
+        assert len(rejected) == 2 * 2
 
-        # Signals only for accepted posts.
+        # Signals only for accepted posts: one per accepted (stream, url).
         signals = db.signals_by_type(iteration, "SOCIAL")
-        assert len(signals) == 3
+        assert len(signals) == 3 * 2
         assert {s["url"] for s in signals} == {d["url"] for d in accepted}
         assert {s["city_id"] for s in signals} == {phoenix, tucson}
 
-        # The facility named in one post is anchored to the registered location.
+        # The facility named in one post is anchored to the registered
+        # location — in each stream's copy of the judgement.
         anchored = [s for s in signals if s["location_id"] is not None]
-        assert len(anchored) == 1
+        assert len(anchored) == 2
 
         # --- Provenance: zero orphans anywhere ------------------------------
         assert db.scalar(

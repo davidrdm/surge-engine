@@ -6,4 +6,4 @@ warning. WHAT it is looking for comes from a mission pack read at startup — se
 `services/mission.py` — not from this package.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"

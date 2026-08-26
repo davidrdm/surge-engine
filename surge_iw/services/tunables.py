@@ -114,9 +114,14 @@ ALLOWED: dict[str, dict[str, Spec]] = {
         "single_source_quality": Spec(float, 0.0, 1.0),
         "on_airport_weight": Spec(float, 0.0, 10.0),
         "band_high_min_score": Spec(float, 0.0, 1.0),
-        "band_high_min_types": Spec(int, 1, 4),
+        # 16, not 4: the engine ships four families, but a mission may
+        # promote streams to families of their own, and a session must be able
+        # to demand any number the loaded pack can actually reach. A value
+        # above the pack's family count makes the band unreachable, which is a
+        # legible outcome rather than an invalid setting.
+        "band_high_min_types": Spec(int, 1, 16),
         "band_medium_min_score": Spec(float, 0.0, 1.0),
-        "band_medium_min_types": Spec(int, 1, 4),
+        "band_medium_min_types": Spec(int, 1, 16),
         "band_low_min_score": Spec(float, 0.0, 1.0),
         "band_low_min_reports": Spec(int, 1, 20),
         # 9.10. Analytical, so a session may sharpen or relax the flight

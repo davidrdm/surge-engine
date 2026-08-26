@@ -1,5 +1,5 @@
 # Surge I&W
-A tipping-and-queuing engine for tactical indications and warning
+A tipping-and-cueing engine for tactical indications and warning
 
 *(c) David Blum, 2026, dmblum@gmail.com*
 
@@ -414,6 +414,14 @@ point, key-location count per city — and writes nothing. Drop it to create.
 `input_set` is a **name**, resolved inside `inputs.dir` — not a path. Pass
 `cities` or `input_set`, never both.
 
+A session may also carry an **operator calendar** of scheduled events
+(`"calendar_set": "example-calendar"`, same name-not-path rule) — context,
+never input: triage shows the events to the model as background, correlations
+record the ones overlapping their window, and no score or band ever moves.
+Append between iterations with `POST /v1/sessions/{id}/calendar`, list with
+`GET`; see [`inputs/example-calendar.yaml`](inputs/example-calendar.yaml) for
+the format.
+
 ### Trigger an iteration
 
 ```bash
@@ -537,8 +545,9 @@ python run.py --config config.yaml alerts 1 --json
 ```
 
 `session create` also takes `--label`, `--tracks` (comma-separated, from the
-loaded mission) and
-`--expand`. Unlike the API it accepts a path as well as a name, because an
+loaded mission), `--expand` and `--calendar NAME|PATH` (the operator calendar;
+`session add-calendar SESSION --from NAME|PATH` appends to it between
+iterations). Unlike the API it accepts a path as well as a name, because an
 operator at a shell already has the filesystem.
 
 Global flags: `--config FILE`, `--database FILE`.

@@ -1,18 +1,23 @@
 # How much each kind of observation is worth, per track.
 #
-# The rows are engine vocabulary: the four data families this system collects,
-# with FLIGHT split by FR24 category because a military-coded airframe and a
-# business jet are different evidence. The mission chooses the numbers, not the
-# rows. A weight of 0.0 means "this track does not produce that signal" and
-# must be written out — an omitted weight would score identically and say
-# nothing about whether anyone considered it.
+# The social rows are this pack's STREAM ids (streams.yaml) — a stream is its
+# own scoring kind, so the mission budgets across its watches by name. The
+# remaining rows are engine vocabulary, with FLIGHT split by FR24 category
+# because a military-coded airframe and a business jet are different evidence.
+# The mission chooses the numbers, not the rows. A weight of 0.0 means "this
+# track does not produce that signal" and must be written out — an omitted
+# weight would score identically and say nothing about whether anyone
+# considered it.
 #
 # Nothing here is calibrated. See mission.yaml.
 
 weights:
   # A tour is announced loudly and moves by charter. No military airlift.
+  # The announcement arrives as chatter before a newsroom confirms the
+  # logistics, so the conversational stream carries more of the budget.
   CONCERT_TOUR:
-    social: 0.40
+    chatter: 0.25
+    local_news: 0.15
     flight_M: 0.00
     flight_J: 0.20
     lodging: 0.25
@@ -21,7 +26,8 @@ weights:
   # Supporters travel commercially and in numbers, so the physical signal is
   # in beds and vehicles rather than in aviation.
   SPORTING_EVENT:
-    social: 0.35
+    chatter: 0.20
+    local_news: 0.15
     flight_M: 0.00
     flight_J: 0.15
     lodging: 0.30
@@ -29,8 +35,11 @@ weights:
 
   # Display aviation is the point of the event, so the aircraft ARE the
   # signal, and a military-coded arrival is the most decisive one available.
+  # Display flying is reported as logistics — airspace notices, practice
+  # days — before anyone tweets about it, so news outweighs chatter here.
   AIRSHOW:
-    social: 0.25
+    chatter: 0.10
+    local_news: 0.15
     flight_M: 0.35
     flight_J: 0.15
     lodging: 0.15

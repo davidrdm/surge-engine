@@ -34,9 +34,9 @@
       ],
       "api_calls": {
         "APIDIRECT": {
-          "calls": 18.0,
+          "calls": 12.0,
           "units": 0.0,
-          "records": 36.0
+          "records": 24.0
         },
         "FR24": {
           "calls": 2.0,
@@ -59,7 +59,7 @@
         {
           "agent": "QueueAgent",
           "level": "INFO",
-          "message": "Seeded 18 social queries, adopted 0 follow-ons",
+          "message": "Seeded 12 social queries, adopted 0 follow-ons",
           "logged_at": "2026-07-27T16:00:00+00:00"
         },
         {
@@ -71,7 +71,7 @@
         {
           "agent": "CollectionAgent",
           "level": "INFO",
-          "message": "Collection pass over SOCIAL: 18 executed, 0 failed, 0 skipped, 0 signals",
+          "message": "Collection pass over SOCIAL: 12 executed, 0 failed, 0 skipped, 0 signals",
           "logged_at": "2026-07-27T16:00:00+00:00"
         },
         {
@@ -84,6 +84,12 @@
           "agent": "TriageAgent",
           "level": "INFO",
           "message": "TriageAgent starting",
+          "logged_at": "2026-07-27T16:00:00+00:00"
+        },
+        {
+          "agent": "TriageAgent",
+          "level": "INFO",
+          "message": "LLM call complete",
           "logged_at": "2026-07-27T16:00:00+00:00"
         },
         {
@@ -119,7 +125,7 @@
         {
           "agent": "CollectionAgent",
           "level": "WARNING",
-          "message": "LODGING query 42 yielded nothing usable: no airbnb listings for 'Riverside Fairground, Phoenix, AZ'",
+          "message": "LODGING query 30 yielded nothing usable: no airbnb listings for 'Riverside Fairground, Phoenix, AZ'",
           "logged_at": "2026-07-27T16:00:00+00:00"
         },
         {

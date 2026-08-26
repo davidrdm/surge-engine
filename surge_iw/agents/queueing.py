@@ -27,6 +27,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from ..db import enums
 from ..db.database import SurgeDB, utcnow
 from ..services import geo, provenance, sensitivity
+from ..services.mission import FAMILIES
 from ..services.budget import BudgetGuard, provider_for_endpoint
 
 # Endpoint constants, verified against each provider's live specification.
@@ -40,6 +41,13 @@ EP_LODGING_SEARCH = "/search"
 EP_LODGING_AVAIL = "/availability"
 EP_LODGING_PRICE = "/price-compare"
 EP_CAR_SEARCH = "/cars/search"
+
+#: Marker endpoint for a stream whose effective platform set the operator's
+#: `apidirect.platforms` emptied. Never enqueued; `run_seed` and
+#: `run_schedule` turn it into a per-city NO_MAPPING queue decision, because
+#: a stream that collects nothing must be a recorded refusal, not a quiet
+#: city.
+_STREAM_DISABLED = "_stream_disabled"
 
 SOCIAL_ENDPOINTS: dict[str, str] = {
     "twitter": EP_TWITTER,
@@ -55,7 +63,8 @@ PRIO_SCHEDULED = 25
 PRIO_BOOKING = 30
 PRIO_SEED = 40
 
-def dedup_key(endpoint: str, params: Mapping[str, Any]) -> str:
+def dedup_key(endpoint: str, params: Mapping[str, Any],
+              stream: str | None = None) -> str:
     """Stable identity for a query: its endpoint plus its canonical parameters.
 
     Canonical JSON with sorted keys, so parameter ordering cannot produce two
@@ -63,8 +72,19 @@ def dedup_key(endpoint: str, params: Mapping[str, Any]) -> str:
     which is ample for collision avoidance at this volume and keeps the index
     narrow.
     """
-    payload = json.dumps([endpoint, params], sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
+    payload: list[Any] = [endpoint, params]
+    if stream is not None:
+        # Two streams issuing an identical search are two pieces of work, so
+        # each carries its own key: a DEDUPED refusal for the second would
+        # make its coverage silently depend on the first's fetch, and the
+        # cooldown would let one stream's execution suppress the other's
+        # revisit. The cost — an identical query paid for twice when a
+        # mission's lexicons overlap on a shared platform — is deliberate and
+        # documented in docs/missions.md. `None` keeps the payload
+        # byte-identical to every key ever written by a no-streams mission.
+        payload.append({"stream": stream})
+    text = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
 
 
 class QueueAgent:
@@ -125,6 +145,7 @@ class QueueAgent:
         signal_id: int | None = None,
         not_before: datetime | None = None,
         schedule_for_later: bool = False,
+        stream: str | None = None,
     ) -> int | None:
         """Enqueue one query, or refuse and record why. Returns query_id or None.
 
@@ -133,12 +154,12 @@ class QueueAgent:
         last because it is the only one that cannot be evaluated without
         attempting the write.
         """
-        key = dedup_key(endpoint, params)
+        key = dedup_key(endpoint, params, stream)
 
         def refuse(outcome: str, detail: str) -> None:
             self.db.record_queue_decision(
                 iteration_id, rule_code, outcome,
-                source_type=source_type, city_name=city_name,
+                source_type=source_type, stream=stream, city_name=city_name,
                 dedup_key=key, signal_id=signal_id, detail=detail,
                 stage=self.stage,
             )
@@ -197,6 +218,7 @@ class QueueAgent:
                 # Scheduled work belongs to no iteration until stage 1 claims
                 # it, but it was still written by this one.
                 created_iteration_id=iteration_id,
+                stream=stream,
             )
         except Exception as exc:  # sqlite3.IntegrityError on idx_qq_dedup
             if "UNIQUE" not in str(exc).upper():
@@ -206,7 +228,7 @@ class QueueAgent:
 
         self.db.record_queue_decision(
             iteration_id, rule_code, "ENQUEUED",
-            source_type=source_type, city_name=city_name,
+            source_type=source_type, stream=stream, city_name=city_name,
             dedup_key=key, signal_id=signal_id,
             detail=f"query_id={query_id} priority={priority} depth={tip_depth}",
             stage=self.stage,
@@ -239,49 +261,69 @@ class QueueAgent:
 
     def build_social_queries(
         self, city_name: str, state: str | None, tracks: Iterable[str]
-    ) -> list[tuple[str, dict[str, Any]]]:
-        """Social queries for one city: (endpoint, params) pairs.
+    ) -> list[tuple[str | None, str, dict[str, Any]]]:
+        """Social queries for one city: (stream, endpoint, params) triples.
 
-        Deterministic template expansion over the mission's lexicon. Still a
-        table rather than a model call, and now an auditable, hashed one: an
-        someone asking "why did you search that" deserves a better answer than
-        "the model chose it", and the pack digest on the receipt says which
-        table was in force. The API Direct endpoints
-        do not share a parameter vocabulary — twitter takes `pages` and
-        `sort_by` with no time filter, news takes `limit` and `time_published` —
-        so params are built per endpoint rather than one shape for all, which is
-        what the old connector got wrong.
+        Deterministic template expansion over the mission's lexicons — one per
+        stream, or the mission-level lexicon for the single implicit stream
+        (stream None), whose output is byte-identical to a pack written before
+        streams existed. Still a table rather than a model call, and an
+        auditable, hashed one: someone asking "why did you search that"
+        deserves a better answer than "the model chose it", and the pack
+        digest on the receipt says which table was in force.
+
+        The API Direct endpoints do not share a parameter vocabulary — twitter
+        takes `pages` and `sort_by` with no time filter, news takes `limit`
+        and `time_published` — so params are built per endpoint rather than
+        one shape for all, which is what the old connector got wrong.
         """
         settings = self.config.get("apidirect", {})
-        platforms = settings.get("platforms", ["twitter", "reddit", "news"])
+        configured = settings.get("platforms", ["twitter", "reddit", "news"])
         place = f"{city_name} {state}".strip() if state else city_name
+        mission = self._mission()
 
-        queries: list[tuple[str, dict[str, Any]]] = []
-        for track in tracks:
-            for group in self._mission().lexicon.get(track, ()):
-                terms = " OR ".join(f'"{t}"' for t in group)
-                query_text = f"{place} ({terms})"[:500]
-                for platform in platforms:
-                    endpoint = SOCIAL_ENDPOINTS.get(platform)
-                    if endpoint is None:
-                        continue
-                    if endpoint == EP_NEWS:
-                        params: dict[str, Any] = {
-                            "query": query_text,
-                            "limit": int(settings.get("news_limit", 50)),
-                            "time_published": settings.get(
-                                "news_time_published", "1d"
-                            ),
-                        }
-                    else:
-                        params = {
-                            "query": query_text,
-                            "pages": int(settings.get("twitter_pages", 2)),
-                            "sort_by": "most_recent",
-                        }
-                        if settings.get("get_sentiment"):
-                            params["get_sentiment"] = True
-                    queries.append((endpoint, params))
+        queries: list[tuple[str | None, str, dict[str, Any]]] = []
+        for stream_id, lexicon in mission.stream_lexicons():
+            if stream_id is None:
+                platforms = list(configured)
+            else:
+                # The mission says what a stream searches; the operator keeps
+                # the deployment-wide kill switch. The intersection is the
+                # effective set, and an EMPTIED stream is recorded per city
+                # rather than skipped silently — its absence would otherwise
+                # read as a quiet city (`run_seed` records the decision;
+                # returning the marker keeps this function pure).
+                declared = next(s.platforms for s in mission.streams
+                                if s.id == stream_id)
+                platforms = [p for p in declared if p in configured]
+                if not platforms:
+                    queries.append((stream_id, _STREAM_DISABLED, {}))
+                    continue
+            for track in tracks:
+                for group in lexicon.get(track, ()):
+                    terms = " OR ".join(f'"{t}"' for t in group)
+                    query_text = f"{place} ({terms})"[:500]
+                    for platform in platforms:
+                        endpoint = SOCIAL_ENDPOINTS.get(platform)
+                        if endpoint is None:
+                            continue
+                        if endpoint == EP_NEWS:
+                            params: dict[str, Any] = {
+                                "query": query_text,
+                                "limit": int(settings.get("news_limit", 50)),
+                                "time_published": settings.get(
+                                    "news_time_published", "1d"
+                                ),
+                            }
+                        else:
+                            params = {
+                                "query": query_text,
+                                "pages": int(settings.get("twitter_pages", 2)),
+                                "sort_by": "most_recent",
+                            }
+                            if settings.get("get_sentiment"):
+                                params["get_sentiment"] = True
+                        queries.append((stream_id, endpoint, params))
         return queries
 
     def run_seed(self, iteration_id: int, session_id: int) -> dict[str, int]:
@@ -294,9 +336,18 @@ class QueueAgent:
             counts["adopted"] += 1
 
         for city in self.db.get_cities(session_id):
-            for endpoint, params in self.build_social_queries(
+            for stream, endpoint, params in self.build_social_queries(
                 city["name"], city["state"], tracks
             ):
+                if endpoint == _STREAM_DISABLED:
+                    self.db.record_queue_decision(
+                        iteration_id, "R0_SEED", "NO_MAPPING",
+                        source_type="SOCIAL", stream=stream,
+                        city_name=city["name"], stage=self.stage,
+                        detail=f"operator config apidirect.platforms disables "
+                               f"every platform of stream {stream!r}; its "
+                               f"collection is absent, not quiet")
+                    continue
                 query_id = self.enqueue(
                     iteration_id=iteration_id,
                     session_id=session_id,
@@ -309,6 +360,7 @@ class QueueAgent:
                     origin="SEED",
                     city_id=int(city["city_id"]),
                     city_name=city["name"],
+                    stream=stream,
                 )
                 if query_id is not None:
                     counts["seeded"] += 1
@@ -371,8 +423,18 @@ class QueueAgent:
         signal_id: int | None,
         tracks: Sequence[str],
     ) -> dict[str, int]:
-        """Rules R1-R5: a relevant social signal tips the other three sources."""
+        """Rules R1-R5: a relevant social signal tips the other three sources.
+
+        A family the mission does not collect is skipped whole — no query, no
+        refusal row, no coverage gap. That silence is correct and is NOT the
+        silence this system forbids: nothing was attempted, so there is
+        nothing whose failure could be mistaken for an absence of threat. The
+        declaration itself is the record, and it is printed at startup, served
+        on `GET /v1/capabilities`, and hashed into every receipt with the rest
+        of the pack.
+        """
         enqueued: dict[str, int] = {}
+        collects = getattr(self._mission(), "collects", FAMILIES)
         fr_cfg = self.config.get("flightradar", {})
         max_airports = int(fr_cfg.get("max_airports_per_city", 3))
         airports = geo.city_to_airports(city_name, limit=max_airports)
@@ -399,7 +461,7 @@ class QueueAgent:
         # returned, which is the real cost control: measured at 8 credits per
         # record, a limit of 20 bounds one airport query at 160 credits.
         use_tripwire = bool(fr_cfg.get("use_count_tripwire"))
-        for iata in airports:
+        for iata in airports if "FLIGHT" in collects else ():
             if use_tripwire:
                 ok = self.enqueue(
                     source_type="FLIGHT_COUNT", endpoint=EP_FLIGHT_COUNT,
@@ -425,7 +487,7 @@ class QueueAgent:
         # is a live record whose category needs resolving, so it is enqueued by
         # escalate_to_history() once R1 comes back with something.
 
-        if not airports:
+        if not airports and "FLIGHT" in collects:
             self.db.record_queue_decision(
                 iteration_id, "R1_FLIGHT_LIVE", "NO_MAPPING",
                 source_type="FLIGHT_LIVE", city_name=city_name,
@@ -436,8 +498,9 @@ class QueueAgent:
         # R4: lodging near each key location. Anchoring on the facility rather
         # than the city centre is the point — a surge shows up as scarcity near
         # the anchor facility, not city-wide.
-        locations = self.db.get_key_locations(city_id)
-        if not locations:
+        locations = (self.db.get_key_locations(city_id)
+                     if "LODGING" in collects else [])
+        if not locations and "LODGING" in collects:
             # A city admitted by tip has no operator-registered facility, so
             # lodging cannot be anchored to anything. Skipping is the safe
             # choice — a city-wide lodging search would carry no distance, and
@@ -489,7 +552,8 @@ class QueueAgent:
         # R5: rental cars, keyed on the airport IATA code. Priceline echoes the
         # code back as pickupLocation.airportCode, so no autocomplete round-trip
         # is needed, and airport fleets book out before off-airport ones.
-        pickup = geo.city_to_pickup_location(city_name)
+        pickup = (geo.city_to_pickup_location(city_name)
+                  if "CAR" in collects else None)
         if pickup:
             if self.enqueue(
                 source_type="CAR", endpoint=EP_CAR_SEARCH,
@@ -497,7 +561,7 @@ class QueueAgent:
                 rule_code="R5_CAR", priority=PRIO_BOOKING, tip_depth=1, **common,
             ):
                 enqueued["CAR"] = enqueued.get("CAR", 0) + 1
-        else:
+        elif "CAR" in collects:
             self.db.record_queue_decision(
                 iteration_id, "R5_CAR", "NO_MAPPING", source_type="CAR",
                 city_name=city_name, signal_id=signal_id,
@@ -788,16 +852,18 @@ class QueueAgent:
             )
             if city is None:
                 continue
-            for endpoint, params in self.build_social_queries(
+            for stream, endpoint, params in self.build_social_queries(
                 city["name"], city["state"], tracks
             ):
+                if endpoint == _STREAM_DISABLED:
+                    continue          # already recorded per city at seed time
                 if self.enqueue(
                     iteration_id=iteration_id, session_id=session_id,
                     source_type="SOCIAL", endpoint=endpoint, params=params,
                     rule_code="R7_REVISIT", priority=PRIO_SCHEDULED,
                     origin="SCHEDULED", city_id=int(city["city_id"]),
                     city_name=city["name"], not_before=due,
-                    schedule_for_later=True,
+                    schedule_for_later=True, stream=stream,
                 ):
                     counts["revisit"] += 1
 
@@ -817,6 +883,7 @@ class QueueAgent:
                 tip_depth=int(row["tip_depth"]), origin="CARRIED_FORWARD",
                 city_id=row["city_id"], location_id=row["location_id"],
                 not_before=due, schedule_for_later=True,
+                stream=row["stream"],
             ):
                 counts["carried_forward"] += 1
 

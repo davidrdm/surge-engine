@@ -3,7 +3,7 @@
   "note": "409 while an interrupted iteration is outstanding. The cooldown is keyed across ALL iterations, so a new run would be silently under-collected. The message names which iteration blocks, which KIND of open it is, and the two URLs that close it — see 37 for the other kind.",
   "request": {
     "method": "POST",
-    "path": "/v1/sessions/4/iterations",
+    "path": "/v1/sessions/5/iterations",
     "headers": {
       "Authorization": "Bearer <SURGE_API_TOKEN>"
     },
@@ -12,7 +12,7 @@
   "response": {
     "status": 409,
     "body": {
-      "detail": "Session 4 already has an unfinished iteration: iteration 3 was interrupted at COLLECTING_TIPPED when its process died — resume it (POST /v1/iterations/3/resume) or abandon it (POST /v1/iterations/3/abandon). Starting a new one now would be silently under-collected: the cooldown guard is keyed on the query hash across ALL iterations, so the open run's recent executions would suppress this one's queries with no visible cause."
+      "detail": "Session 5 already has an unfinished iteration: iteration 3 was interrupted at COLLECTING_TIPPED when its process died — resume it (POST /v1/iterations/3/resume) or abandon it (POST /v1/iterations/3/abandon). Starting a new one now would be silently under-collected: the cooldown guard is keyed on the query hash across ALL iterations, so the open run's recent executions would suppress this one's queries with no visible cause."
     }
   }
 }

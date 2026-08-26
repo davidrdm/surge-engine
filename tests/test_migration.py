@@ -331,6 +331,141 @@ class TestItIsSafeToRunTwice:
         assert {t: ddl(path, t) for t, _o, _n in _RENAMES + _REBUILDS} == before
 
 
+class TestTheV15IndexSwap:
+    """v15 and v16 both changed `idx_sig_dedup`'s DEFINITION — the stream
+    column, then the city — and an index cannot be altered in place.
+    `_swap_indexes` drops and recreates any index whose stored DDL lacks the
+    current guard fragment, so a database from ANY earlier version arrives at
+    today's definition in one swap.
+
+    The fixture is derived the same way as the vocabulary one above: the
+    current schema with those additions stripped back out, so it cannot
+    drift from `schema.sql`.
+    """
+
+    def _v14_shaped(self, tmp_path: Path) -> Path:
+        sql = SCHEMA.read_text(encoding="utf-8")
+        # Strip the six v15 columns (each is one declaration line, preceded by
+        # its comment block — removing the declaration alone is enough for the
+        # shape; comments are legal in the old file too).
+        out = []
+        for line in sql.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("stream ") and stripped.endswith("TEXT,"):
+                continue
+            if stripped.startswith("calendar_matches_json"):
+                continue
+            if stripped == "COALESCE(stream, ''),":
+                continue
+            if stripped == "COALESCE(city_id, -1),":
+                continue
+            out.append(line)
+        sql = "\n".join(out)
+        # And the calendar table, which did not exist at v14.
+        import re
+        sql = re.sub(
+            r"CREATE TABLE IF NOT EXISTS calendar_events \((?:.|\n)*?^\);",
+            "", sql, flags=re.M)
+        sql = sql.replace(
+            "CREATE INDEX IF NOT EXISTS idx_calendar_session\n"
+            "    ON calendar_events (session_id, city_canonical, starts_at);",
+            "")
+        path = tmp_path / "v14.db"
+        conn = sqlite3.connect(path)
+        conn.executescript(sql)
+        _insert(conn, "sessions", session_id=1, label="s", tracks="A",
+                config_json="{}")
+        _insert(conn, "cities", city_id=1, session_id=1, name="Phoenix",
+                canonical="phoenix")
+        _insert(conn, "iterations", iteration_id=1, session_id=1, seq=1,
+                stage="SEEDING")
+        _insert(conn, "signals", signal_id=1, iteration_id=1,
+                signal_type="SOCIAL", city_id=1, url="https://x.com/a")
+        conn.commit()
+        conn.close()
+        return path
+
+    def test_the_fixture_is_genuinely_old(self, tmp_path: Path):
+        path = self._v14_shaped(tmp_path)
+        assert "stream" not in columns(path, "signals")
+        assert "COALESCE(stream" not in ddl_index(path, "idx_sig_dedup")
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        assert conn.execute(
+            "SELECT COUNT(*) FROM sqlite_master "
+            "WHERE name='calendar_events'").fetchone()[0] == 0
+        conn.close()
+
+    def test_opening_swaps_the_index_and_keeps_the_rows(self, tmp_path: Path):
+        path = self._v14_shaped(tmp_path)
+        SurgeDB(path).close()
+        assert "stream" in columns(path, "signals")
+        assert "COALESCE(stream" in ddl_index(path, "idx_sig_dedup")
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        assert conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0] == 1
+        assert conn.execute(
+            "SELECT COUNT(*) FROM sqlite_master "
+            "WHERE name='calendar_events'").fetchone()[0] == 1
+        assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        conn.close()
+
+    def test_the_swap_is_idempotent(self, tmp_path: Path):
+        path = self._v14_shaped(tmp_path)
+        SurgeDB(path).close()
+        first = ddl_index(path, "idx_sig_dedup")
+        SurgeDB(path).close()
+        assert ddl_index(path, "idx_sig_dedup") == first
+
+    def test_uniqueness_is_now_per_city(self, tmp_path: Path):
+        """v16. One observation about two cities is two rows — correlation
+        scores each city over its own rows, so they can never meet in one
+        number, and omitting the city meant the second city's evidence was
+        refused by the index and lost in silence."""
+        path = self._v14_shaped(tmp_path)
+        SurgeDB(path).close()
+        assert "COALESCE(city_id" in ddl_index(path, "idx_sig_dedup")
+        conn = sqlite3.connect(path)
+        conn.execute("INSERT INTO cities (city_id, session_id, name, "
+                     "canonical) VALUES (2,1,'Tucson','tucson')")
+        base = ("INSERT INTO signals (iteration_id, signal_type, city_id, "
+                "track, quality, signal_state, collection_class, stream, url) "
+                "VALUES (1,'SOCIAL',?,'UNKNOWN',0,'CONFIRMED','UNRECORDED',"
+                "'one',?)")
+        conn.execute(base, (1, "https://x.com/b"))
+        conn.execute(base, (2, "https://x.com/b"))      # other city: fine
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(base, (1, "https://x.com/b"))  # same city: refused
+        conn.close()
+
+    def test_uniqueness_is_now_per_stream(self, tmp_path: Path):
+        """The point of the swap: the same URL may be one signal PER stream,
+        while a within-stream duplicate is still refused — and pre-v15 rows
+        (stream NULL) keep exactly their old dedup behaviour."""
+        path = self._v14_shaped(tmp_path)
+        SurgeDB(path).close()
+        conn = sqlite3.connect(path)
+        base = ("INSERT INTO signals (iteration_id, signal_type, city_id, "
+                "track, quality, signal_state, collection_class, stream, url) "
+                "VALUES (1,'SOCIAL',1,'UNKNOWN',0,'CONFIRMED','UNRECORDED',?,?)")
+        conn.execute(base, ("one", "https://x.com/a"))
+        conn.execute(base, ("two", "https://x.com/a"))     # other stream: fine
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(base, ("one", "https://x.com/a")) # same stream: refused
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(base, (None, "https://x.com/a"))  # NULL collides with
+        conn.close()                                       # the pre-v15 row
+
+
+def ddl_index(path: Path, index: str) -> str:
+    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='index' AND name=?",
+            (index,)).fetchone()
+        return row[0] if row and row[0] else ""
+    finally:
+        conn.close()
+
+
 class TestAFailureLeavesTheFileAlone:
     def test_a_row_the_new_definition_refuses_aborts_the_whole_upgrade(
         self, old: Path

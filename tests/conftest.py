@@ -69,6 +69,10 @@ def mission_terms() -> tuple[str, ...]:
         candidates = (list(loaded.tracks) + list(loaded.location_types)
                       + [t for groups in loaded.lexicon.values()
                          for group in groups for t in group]
+                      + [t for stream in getattr(loaded, "streams", ())
+                         for groups in stream.lexicon.values()
+                         for group in groups for t in group]
+                      + [s.id for s in getattr(loaded, "streams", ())]
                       + list(loaded.facility_aliases)
                       + list(loaded.facility_aliases.values()))
         out.update(t for t in candidates if pattern.search(t))
@@ -121,6 +125,16 @@ def mission_vocabulary():
         for groups in loaded.lexicon.values():
             for group in groups:
                 prose.update(group)
+        # v0.2 streams: ids and per-stream lexicons are the pack's vocabulary
+        # exactly as the mission-level lexicon is; a promoted family name is
+        # an identifier the engine must never spell.
+        for stream in getattr(loaded, "streams", ()):
+            prose.add(stream.id)
+            if stream.family != "SOCIAL":
+                identifiers.add(stream.family)
+            for groups in stream.lexicon.values():
+                for group in groups:
+                    prose.update(group)
         prose.update(loaded.facility_tokens)
         prose.update(loaded.facility_aliases)
         prose.update(loaded.facility_aliases.values())

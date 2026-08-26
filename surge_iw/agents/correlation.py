@@ -17,12 +17,13 @@ evidence and absence of collection must never look the same.
 """
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any, Mapping
 
 from ..base.agent import BaseAgent
 from ..base.scoring import TrackModel, correlate, source_types_for_skipped
 from ..db.database import parse_iso, utcnow
-from ..services import hypotheses
+from ..services import hypotheses, receipts
 
 
 class CorrelationAgent(BaseAgent):
@@ -55,6 +56,20 @@ class CorrelationAgent(BaseAgent):
         tracks = self.db.session_tracks(session_id)
         cfg = self.config.get("correlation", {})
 
+        # The operator calendar as this ITERATION saw it — the same
+        # `added_at <= started_at` cut triage's context block uses, so the
+        # events a correlation is annotated with are exactly the events the
+        # judgements upstream of it were framed by. Windowing and city
+        # filtering are safe HERE, unlike in the prompt block, because what
+        # this produces is STORED verbatim on the row: a later config change
+        # cannot silently reframe an old correlation.
+        calendar = [dict(row) for row in self.db.calendar_events(
+            session_id, added_before=iteration["started_at"])]
+        window_start = anchor - timedelta(
+            hours=float(cfg.get("window_hours", 48)))
+        window_end = anchor + timedelta(hours=float(
+            self.config.get("windows", {}).get("near_term_hours", 48)))
+
         counts = {"correlated": 0, "alertable": 0, "capped": 0,
                   "candidates_excluded": 0}
 
@@ -68,6 +83,13 @@ class CorrelationAgent(BaseAgent):
         # correlation row at all for a city whose only evidence was social,
         # making a dead judgement layer indistinguishable from a quiet city.
         uncovered_posts = self.db.triage_uncovered(iteration_id)
+        # Per STREAM, because a stream occupies a banding family and the gap
+        # must reach the right one. The implicit stream (None) means "the
+        # social feed as a whole", which `correlate` maps to every
+        # social-derived family — conservative where lineage is absent.
+        uncovered_streams = sorted(
+            self.db.triage_uncovered_by_stream(iteration_id),
+            key=lambda v: (v is None, v or ""))
         triage_gap = ["SOCIAL"] if uncovered_posts else []
 
         # A stage that never ran is a gap even when every query it DID issue
@@ -94,6 +116,25 @@ class CorrelationAgent(BaseAgent):
 
         for city in self.db.get_cities(session_id):
             city_id = int(city["city_id"])
+            # Overlap, not containment: an event straddling either edge of
+            # [anchor - window_hours, anchor + near_term_hours] is context
+            # for it. `None` when the session has no calendar at all, so the
+            # stored row can distinguish "nothing to consult" from "consulted,
+            # nothing matched". Snapshots carry the fields the API's calendar
+            # listing shows, so the two surfaces read alike.
+            matches = [
+                {"event_id": int(event["event_id"]), "name": event["name"],
+                 "city": event["city_label"],
+                 "city_canonical": event["city_canonical"],
+                 "starts_at": event["starts_at"], "ends_at": event["ends_at"],
+                 "category": event["category"], "note": event["note"],
+                 "source_name": event["source_name"],
+                 "added_at": event["added_at"]}
+                for event in calendar
+                if event["city_canonical"] == city["canonical"]
+                and parse_iso(event["starts_at"]) <= window_end
+                and parse_iso(event["ends_at"]) >= window_start
+            ] if calendar else None
             rows = [dict(row) for row in self._signals(session_id, city_id, anchor, cfg)]
             # CANDIDATE rows stay visible in the evidence trail but do not
             # score. See services/sensitivity.py for why the distinction exists.
@@ -108,6 +149,22 @@ class CorrelationAgent(BaseAgent):
             baselines = self._flight_baselines(iteration_id, city_id, cfg)
             endpoints = dict(self.db.unreliable_sources(iteration_id, city_id))
             collected = self.db.collected_source_types(iteration_id, city_id)
+            # Under a streams mission, every social loss travels through
+            # `social_stream_gaps` — per stream where the lineage exists,
+            # `None` (= every social-derived family) where it does not — and
+            # the bare "SOCIAL" source-type entry is removed so one lost
+            # query cannot gap both a stream's family and, via the
+            # conservative streamless rule, all of them at once. A no-streams
+            # mission takes the v0.1 path untouched.
+            if getattr(self._mission(), "streams", ()):
+                stream_gaps: list[str | None] = sorted(
+                    set(self.db.unreliable_social_streams(
+                        iteration_id, city_id))
+                    | set(uncovered_streams)
+                    | ({None} if "SOCIAL" in skipped_gap else set()),
+                    key=lambda v: (v is None, v or ""))
+            else:
+                stream_gaps = []
             unreliable = sorted(
                 set(self.db.unreliable_source_types(iteration_id, city_id))
                 # A query a guard refused to enqueue leaves no queue row, so it
@@ -117,6 +174,8 @@ class CorrelationAgent(BaseAgent):
                 | set(triage_gap)
                 | set(skipped_gap)
             )
+            if stream_gaps:
+                unreliable = sorted(set(unreliable) - {"SOCIAL"})
             if not signals and not unreliable:
                 # Nothing observed and nothing missing. Recording a zero-score
                 # correlation for every quiet city on every track would bury the
@@ -134,6 +193,7 @@ class CorrelationAgent(BaseAgent):
                     failed_endpoints=endpoints,
                     collected_source_types=collected,
                     flight_baselines=baselines,
+                    social_stream_gaps=stream_gaps,
                 )
                 # 9.6. What else would produce THIS evidence, derived from
                 # the families that actually contributed rather than from
@@ -144,6 +204,12 @@ class CorrelationAgent(BaseAgent):
                     row for row in signals
                     if row.get("signal_id") in result.signal_contributions
                 ]
+                trace = result.rule_trace
+                if matches:
+                    trace += (
+                        f"; operator calendar: {len(matches)} scheduled "
+                        f"event(s) overlap this window (annotation only — "
+                        f"score unchanged)")
                 correlation_id = self.db.upsert_correlation(
                     iteration_id=iteration_id, city_id=city_id,
                     track=track, score=result.score, band=result.band,
@@ -155,10 +221,16 @@ class CorrelationAgent(BaseAgent):
                     failed_sources=result.failed_sources,
                     failed_families=result.failed_families,
                     band_capped=result.band_capped,
-                    rule_trace=result.rule_trace,
+                    rule_trace=trace,
                     alternatives=hypotheses.for_correlation(
                         contributing, result.contributions,
-                        self._mission()),
+                        self._mission(), calendar_matches=matches or ()),
+                    calendar_matches=matches,
+                    # The tunables this score was computed under. Correlation
+                    # writes no receipt — no model is involved — so without
+                    # this the arithmetic's settings live only in a config
+                    # file that anyone may edit afterwards.
+                    config_hash=receipts.config_fingerprint(self.config),
                     flight_baseline=(
                         {**result.flight_baseline,
                          "_contamination_filter":

@@ -313,10 +313,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # BUDGET is what bounds a run, not an incidental fan-out counter — the
         # budget refuses per query with a recorded reason, this cap just stops.
         "max_queries_per_iteration": 500,
-        # Sized to the natural fan-out, not below it. The fan-out is
-        # (lexicon groups across all tracks) x (platforms) social queries per
-        # city, plus the tipped follow-ons — so a mission with a larger lexicon
-        # needs a larger cap. Measured live at the previous value of 12: the
+        # Sized to the natural fan-out, not below it. The fan-out is, per
+        # city, the sum over the mission's streams of (lexicon groups across
+        # all tracks) x (that stream's effective platforms) — one implicit
+        # stream over every configured platform when the pack declares none —
+        # plus the tipped follow-ons. A mission with a larger lexicon or more
+        # streams needs a larger cap. Measured live at the previous value of 12: the
         # cap bound during NORMAL seeding and refused every query for one whole
         # track, so that track was never collected at all. A guard that fires
         # in the ordinary case is not a runaway guard.

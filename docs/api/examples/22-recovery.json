@@ -48,7 +48,7 @@
         },
         {
           "iteration_id": 3,
-          "session_id": 4,
+          "session_id": 5,
           "seq": 1,
           "kind": "INTERRUPTED",
           "interrupted_at": "2026-07-27T20:00:00+00:00",
@@ -76,7 +76,7 @@
         },
         {
           "iteration_id": 3,
-          "session_id": 4,
+          "session_id": 5,
           "seq": 1,
           "kind": "INTERRUPTED",
           "interrupted_at": "2026-07-27T20:00:00+00:00",

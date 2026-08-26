@@ -1,0 +1,20 @@
+{
+  "name": "04b-append-calendar-blocked",
+  "note": "409 while an iteration runs, for the same reason as add-cities: each iteration's triage context is fixed at its start, and a mid-run append would make two batches of one run see different calendars. No Retry-After — appending is not urgent, and the remedy is simply 'between iterations'.",
+  "request": {
+    "method": "POST",
+    "path": "/v1/sessions/1/calendar",
+    "headers": {
+      "Authorization": "Bearer <SURGE_API_TOKEN>"
+    },
+    "body": {
+      "calendar_set": "example-calendar"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "detail": "Iteration 1 is running; append calendar events between iterations"
+    }
+  }
+}

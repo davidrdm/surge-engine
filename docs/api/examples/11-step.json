@@ -26,11 +26,11 @@
         "finished_at": "2026-07-27T16:00:00+00:00",
         "error_message": null,
         "wrote": {
-          "query_queue": 18,
-          "queue_decisions": 18
+          "query_queue": 12,
+          "queue_decisions": 12
         },
         "decisions": {
-          "ENQUEUED": 18
+          "ENQUEUED": 12
         },
         "agents": [],
         "api_calls": {},
@@ -44,7 +44,7 @@
           {
             "agent": "QueueAgent",
             "level": "INFO",
-            "message": "Seeded 18 social queries, adopted 0 follow-ons",
+            "message": "Seeded 12 social queries, adopted 0 follow-ons",
             "logged_at": "2026-07-27T16:00:00+00:00"
           }
         ],

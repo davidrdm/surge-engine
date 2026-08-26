@@ -17,23 +17,24 @@
       "city": "Phoenix, AZ",
       "track": "AIRSHOW",
       "confidence": {
-        "score": 0.4626,
+        "score": 0.4108,
         "band": "LOW"
       },
       "summary": null,
       "caveat": null,
       "alert_decision": "BELOW_FLOOR",
-      "alert_decision_reason": "score 0.463 is below correlation.alert_min_score (0.99); band would have been LOW over 2 distinct signal type(s)",
-      "rule_trace": "score 0.46 >= 0.2, 7 independent reports across 2 signal families; flight_AMBIGUOUS NOT baselined — too few prior samples, so the absolute count of 2 stands; flight_J NOT baselined — too few prior samples, so the absolute count of 1 stands; evidence aged on a 72-hour window (half-life 21.7h, 0.1 at the edge)",
+      "alert_decision_reason": "score 0.411 is below correlation.alert_min_score (0.99); band would have been LOW over 3 distinct signal type(s)",
+      "rule_trace": "score 0.41 >= 0.2, 7 independent reports across 3 signal families; flight_AMBIGUOUS NOT baselined — too few prior samples, so the absolute count of 2 stands; flight_J NOT baselined — too few prior samples, so the absolute count of 1 stands; evidence aged on a 72-hour window (half-life 21.7h, 0.1 at the edge)",
       "contributions": {
         "car": 0.0,
+        "chatter": 0.033639,
         "flight_AMBIGUOUS": 0.097747,
         "flight_J": 0.058139,
         "flight_M": 0.135072,
-        "social": 0.17163
+        "local_news": 0.086159
       },
-      "distinct_types": 2,
-      "data_completeness": 0.75,
+      "distinct_types": 3,
+      "data_completeness": 0.8,
       "failed_sources": [
         "LODGING:/search"
       ],
@@ -45,12 +46,17 @@
         {
           "code": "ROUTINE_AVIATION",
           "statement": "Ordinary business or general aviation traffic for this airport, at a level the baseline has not yet learned.",
-          "weakened_by": "Evidence came from 2 independent families; an explanation has to account for all of them, not only this one."
+          "weakened_by": "Evidence came from 3 independent families; an explanation has to account for all of them, not only this one."
         },
         {
           "code": "UNRELATED_EVENT",
           "statement": "Aircraft arriving for a different gathering in the same metro area.",
-          "weakened_by": "Evidence came from 2 independent families; an explanation has to account for all of them, not only this one."
+          "weakened_by": "Evidence came from 3 independent families; an explanation has to account for all of them, not only this one."
+        },
+        {
+          "code": "SYNDICATED_REPRINT",
+          "statement": "One newsroom's story reprinted across outlets, reading as several confirmations of preparations that were reported once.",
+          "weakened_by": "Corroboration counts distinct publishers AND distinct claims over every stream together, so one story in many outlets is one claim, not several. Evidence came from 3 independent families; an explanation has to account for all of them, not only this one."
         }
       ],
       "evidence_freshness": {
@@ -60,6 +66,7 @@
         "oldest_hours": 16.5,
         "signals": 8
       },
+      "config_hash": "c29333a7e10af79d4cb9e6bf80f36fda",
       "flight_baseline": {
         "_contamination_filter": "APPLIED",
         "flight_AMBIGUOUS": {
@@ -76,14 +83,15 @@
       "collection": {
         "INTERMEDIARY_LIVE": 8
       },
+      "calendar_matches": null,
       "signals": [
         {
           "signal": {
             "signal_id": 37,
             "iteration_id": 5,
-            "raw_id": 70,
+            "raw_id": 49,
             "signal_type": "FLIGHT",
-            "city_id": 8,
+            "city_id": 9,
             "location_id": null,
             "track": "UNKNOWN",
             "observed_at": "2026-07-27T11:12:03+00:00",
@@ -92,6 +100,7 @@
             "state_reason": null,
             "collection_class": "INTERMEDIARY_LIVE",
             "collection_basis": "FR24 /api/live/flight-positions/full: retrieved for this request",
+            "stream": null,
             "url": null,
             "author": null,
             "platform": null,
@@ -143,7 +152,7 @@
           "contribution": 0.135072,
           "receipt": null,
           "raw": {
-            "raw_id": 70,
+            "raw_id": 49,
             "provider": "FR24",
             "retrieved_at": "2026-07-28T01:00:00+00:00",
             "purge_after": "2026-08-27T01:00:00+00:00",
@@ -152,7 +161,7 @@
             "payload_withheld": "api.expose_raw_payloads is false; the normalised signal above is the evidence surface"
           },
           "query": {
-            "query_id": 74,
+            "query_id": 53,
             "source_type": "FLIGHT_LIVE",
             "endpoint": "/api/live/flight-positions/full",
             "params_withheld": "api.expose_raw_payloads is false",
@@ -168,9 +177,9 @@
           "signal": {
             "signal_id": 38,
             "iteration_id": 5,
-            "raw_id": 70,
+            "raw_id": 49,
             "signal_type": "FLIGHT",
-            "city_id": 8,
+            "city_id": 9,
             "location_id": null,
             "track": "UNKNOWN",
             "observed_at": "2026-07-27T11:14:55+00:00",
@@ -179,6 +188,7 @@
             "state_reason": null,
             "collection_class": "INTERMEDIARY_LIVE",
             "collection_basis": "FR24 /api/live/flight-positions/full: retrieved for this request",
+            "stream": null,
             "url": null,
             "author": null,
             "platform": null,
@@ -230,7 +240,7 @@
           "contribution": 0.050044,
           "receipt": null,
           "raw": {
-            "raw_id": 70,
+            "raw_id": 49,
             "provider": "FR24",
             "retrieved_at": "2026-07-28T01:00:00+00:00",
             "purge_after": "2026-08-27T01:00:00+00:00",
@@ -239,7 +249,7 @@
             "payload_withheld": "api.expose_raw_payloads is false; the normalised signal above is the evidence surface"
           },
           "query": {
-            "query_id": 74,
+            "query_id": 53,
             "source_type": "FLIGHT_LIVE",
             "endpoint": "/api/live/flight-positions/full",
             "params_withheld": "api.expose_raw_payloads is false",
@@ -255,9 +265,9 @@
           "signal": {
             "signal_id": 39,
             "iteration_id": 5,
-            "raw_id": 70,
+            "raw_id": 49,
             "signal_type": "FLIGHT",
-            "city_id": 8,
+            "city_id": 9,
             "location_id": null,
             "track": "UNKNOWN",
             "observed_at": "2026-07-27T11:20:11+00:00",
@@ -266,6 +276,7 @@
             "state_reason": null,
             "collection_class": "INTERMEDIARY_LIVE",
             "collection_basis": "FR24 /api/live/flight-positions/full: retrieved for this request",
+            "stream": null,
             "url": null,
             "author": null,
             "platform": null,
@@ -317,7 +328,7 @@
           "contribution": 0.058139,
           "receipt": null,
           "raw": {
-            "raw_id": 70,
+            "raw_id": 49,
             "provider": "FR24",
             "retrieved_at": "2026-07-28T01:00:00+00:00",
             "purge_after": "2026-08-27T01:00:00+00:00",
@@ -326,7 +337,7 @@
             "payload_withheld": "api.expose_raw_payloads is false; the normalised signal above is the evidence surface"
           },
           "query": {
-            "query_id": 74,
+            "query_id": 53,
             "source_type": "FLIGHT_LIVE",
             "endpoint": "/api/live/flight-positions/full",
             "params_withheld": "api.expose_raw_payloads is false",
@@ -342,9 +353,9 @@
           "signal": {
             "signal_id": 46,
             "iteration_id": 5,
-            "raw_id": 72,
+            "raw_id": 51,
             "signal_type": "FLIGHT",
-            "city_id": 8,
+            "city_id": 9,
             "location_id": null,
             "track": "UNKNOWN",
             "observed_at": "2026-07-27T09:45:00+00:00",
@@ -353,6 +364,7 @@
             "state_reason": null,
             "collection_class": "INTERMEDIARY_LIVE",
             "collection_basis": "FR24 /api/flight-summary/full: retrieved for this request",
+            "stream": null,
             "url": null,
             "author": null,
             "platform": null,
@@ -404,7 +416,7 @@
           "contribution": 0.047702,
           "receipt": null,
           "raw": {
-            "raw_id": 72,
+            "raw_id": 51,
             "provider": "FR24",
             "retrieved_at": "2026-07-28T01:00:00+00:00",
             "purge_after": "2026-08-27T01:00:00+00:00",
@@ -413,7 +425,7 @@
             "payload_withheld": "api.expose_raw_payloads is false; the normalised signal above is the evidence surface"
           },
           "query": {
-            "query_id": 77,
+            "query_id": 56,
             "source_type": "FLIGHT_HISTORY",
             "endpoint": "/api/flight-summary/full",
             "params_withheld": "api.expose_raw_payloads is false",
@@ -429,10 +441,10 @@
           "signal": {
             "signal_id": 33,
             "iteration_id": 5,
-            "raw_id": 52,
+            "raw_id": 37,
             "signal_type": "SOCIAL",
-            "city_id": 8,
-            "location_id": 8,
+            "city_id": 9,
+            "location_id": 9,
             "track": "AIRSHOW",
             "observed_at": "2026-07-27T10:12:00+00:00",
             "quality": 0.9,
@@ -440,6 +452,7 @@
             "state_reason": "meets the confirmation floor with a usable timestamp",
             "collection_class": "INTERMEDIARY_LIVE",
             "collection_basis": "APIDIRECT /v1/twitter/posts: retrieved for this request",
+            "stream": "chatter",
             "url": "https://x.com/azreporter/status/1001",
             "author": "azreporter",
             "platform": "Twitter (X)",
@@ -486,11 +499,11 @@
             "is_on_airport": null,
             "is_peer_to_peer": null,
             "field_map_ver": null,
-            "contribution": 0.044063
+            "contribution": 0.016963
           },
-          "contribution": 0.044063,
+          "contribution": 0.016963,
           "receipt": {
-            "receipt_id": 8,
+            "receipt_id": 11,
             "kind": "TRIAGE",
             "provider": "https://generativelanguage.googleapis.com/v1beta/openai/",
             "model_requested": "gemini-3.5-flash",
@@ -499,21 +512,21 @@
             "system_fingerprint": null,
             "prompt_version": "reference-relevance/1-strict",
             "prompt_hash": "e2556344fdb32a8f645d09d22d1ed6d1",
-            "prompt_user_hash": "0443c0ada7e7757cfd32996fd0b60e62",
+            "prompt_user_hash": "5116b358f4f4f6323dcabbe714dce1fd",
             "schema_version": "triage/1",
             "rules_version": "sensitivity/1",
             "normaliser_version": "provenance/2",
             "config_hash": "c29333a7e10af79d4cb9e6bf80f36fda",
-            "input_hash": "39cac9022fe21460675781fe609eccdb",
+            "input_hash": "1e33ef93d63eaa83464a650923325b12",
             "code_revision": "0000000",
-            "package_version": "0.1.0",
-            "mission_id": "reference/1",
-            "mission_hash": "3ad99e22c0068dee5523d38d39f959d2750162951766f07708233f17a52ab484",
+            "package_version": "0.3.0",
+            "mission_id": "reference/2",
+            "mission_hash": "6bcf3d40af676535a7ecec5d066a58035df9fa1ab6c3edf7f27bffc785a38060",
             "attempts": 1,
             "created_at": "2026-07-28T01:00:00+00:00"
           },
           "raw": {
-            "raw_id": 52,
+            "raw_id": 37,
             "provider": "APIDIRECT",
             "retrieved_at": "2026-07-28T01:00:00+00:00",
             "purge_after": "2026-10-26T01:00:00+00:00",
@@ -522,7 +535,7 @@
             "payload_withheld": "api.expose_raw_payloads is false; the normalised signal above is the evidence surface"
           },
           "query": {
-            "query_id": 56,
+            "query_id": 41,
             "source_type": "SOCIAL",
             "endpoint": "/v1/twitter/posts",
             "params_withheld": "api.expose_raw_payloads is false",
@@ -538,10 +551,10 @@
           "signal": {
             "signal_id": 34,
             "iteration_id": 5,
-            "raw_id": 52,
+            "raw_id": 37,
             "signal_type": "SOCIAL",
-            "city_id": 8,
-            "location_id": 8,
+            "city_id": 9,
+            "location_id": 9,
             "track": "AIRSHOW",
             "observed_at": "2026-07-27T09:40:00+00:00",
             "quality": 0.9,
@@ -549,6 +562,7 @@
             "state_reason": "meets the confirmation floor with a usable timestamp",
             "collection_class": "INTERMEDIARY_LIVE",
             "collection_basis": "APIDIRECT /v1/twitter/posts: retrieved for this request",
+            "stream": "chatter",
             "url": "https://x.com/localwatch/status/1002",
             "author": "localwatch",
             "platform": "Twitter (X)",
@@ -595,11 +609,11 @@
             "is_on_airport": null,
             "is_peer_to_peer": null,
             "field_map_ver": null,
-            "contribution": 0.043318
+            "contribution": 0.016676
           },
-          "contribution": 0.043318,
+          "contribution": 0.016676,
           "receipt": {
-            "receipt_id": 8,
+            "receipt_id": 11,
             "kind": "TRIAGE",
             "provider": "https://generativelanguage.googleapis.com/v1beta/openai/",
             "model_requested": "gemini-3.5-flash",
@@ -608,21 +622,21 @@
             "system_fingerprint": null,
             "prompt_version": "reference-relevance/1-strict",
             "prompt_hash": "e2556344fdb32a8f645d09d22d1ed6d1",
-            "prompt_user_hash": "0443c0ada7e7757cfd32996fd0b60e62",
+            "prompt_user_hash": "5116b358f4f4f6323dcabbe714dce1fd",
             "schema_version": "triage/1",
             "rules_version": "sensitivity/1",
             "normaliser_version": "provenance/2",
             "config_hash": "c29333a7e10af79d4cb9e6bf80f36fda",
-            "input_hash": "39cac9022fe21460675781fe609eccdb",
+            "input_hash": "1e33ef93d63eaa83464a650923325b12",
             "code_revision": "0000000",
-            "package_version": "0.1.0",
-            "mission_id": "reference/1",
-            "mission_hash": "3ad99e22c0068dee5523d38d39f959d2750162951766f07708233f17a52ab484",
+            "package_version": "0.3.0",
+            "mission_id": "reference/2",
+            "mission_hash": "6bcf3d40af676535a7ecec5d066a58035df9fa1ab6c3edf7f27bffc785a38060",
             "attempts": 1,
             "created_at": "2026-07-28T01:00:00+00:00"
           },
           "raw": {
-            "raw_id": 52,
+            "raw_id": 37,
             "provider": "APIDIRECT",
             "retrieved_at": "2026-07-28T01:00:00+00:00",
             "purge_after": "2026-10-26T01:00:00+00:00",
@@ -631,7 +645,7 @@
             "payload_withheld": "api.expose_raw_payloads is false; the normalised signal above is the evidence surface"
           },
           "query": {
-            "query_id": 56,
+            "query_id": 41,
             "source_type": "SOCIAL",
             "endpoint": "/v1/twitter/posts",
             "params_withheld": "api.expose_raw_payloads is false",
@@ -647,10 +661,10 @@
           "signal": {
             "signal_id": 35,
             "iteration_id": 5,
-            "raw_id": 54,
+            "raw_id": 45,
             "signal_type": "SOCIAL",
-            "city_id": 8,
-            "location_id": 8,
+            "city_id": 9,
+            "location_id": 9,
             "track": "AIRSHOW",
             "observed_at": "2026-07-27T09:05:00+00:00",
             "quality": 0.9,
@@ -658,6 +672,7 @@
             "state_reason": "meets the confirmation floor with a usable timestamp",
             "collection_class": "INTERMEDIARY_LIVE",
             "collection_basis": "APIDIRECT /v1/news/articles: retrieved for this request",
+            "stream": "local_news",
             "url": "https://apnews.com/article/phoenix-airshow-2026",
             "author": "Jane Doe",
             "platform": "news",
@@ -704,34 +719,34 @@
             "is_on_airport": null,
             "is_peer_to_peer": null,
             "field_map_ver": null,
-            "contribution": 0.042517
+            "contribution": 0.043481
           },
-          "contribution": 0.042517,
+          "contribution": 0.043481,
           "receipt": {
-            "receipt_id": 8,
+            "receipt_id": 12,
             "kind": "TRIAGE",
             "provider": "https://generativelanguage.googleapis.com/v1beta/openai/",
             "model_requested": "gemini-3.5-flash",
             "model_served": null,
             "response_id": null,
             "system_fingerprint": null,
-            "prompt_version": "reference-relevance/1-strict",
-            "prompt_hash": "e2556344fdb32a8f645d09d22d1ed6d1",
-            "prompt_user_hash": "0443c0ada7e7757cfd32996fd0b60e62",
+            "prompt_version": "reference-relevance/2-news-strict",
+            "prompt_hash": "f85c5ce90ede3fe3394fdc453891513f",
+            "prompt_user_hash": "d628a66decfb3f2b460204f50d16933c",
             "schema_version": "triage/1",
             "rules_version": "sensitivity/1",
             "normaliser_version": "provenance/2",
             "config_hash": "c29333a7e10af79d4cb9e6bf80f36fda",
-            "input_hash": "39cac9022fe21460675781fe609eccdb",
+            "input_hash": "db5ae6462a0d30e79359745681a2c5ae",
             "code_revision": "0000000",
-            "package_version": "0.1.0",
-            "mission_id": "reference/1",
-            "mission_hash": "3ad99e22c0068dee5523d38d39f959d2750162951766f07708233f17a52ab484",
+            "package_version": "0.3.0",
+            "mission_id": "reference/2",
+            "mission_hash": "6bcf3d40af676535a7ecec5d066a58035df9fa1ab6c3edf7f27bffc785a38060",
             "attempts": 1,
             "created_at": "2026-07-28T01:00:00+00:00"
           },
           "raw": {
-            "raw_id": 54,
+            "raw_id": 45,
             "provider": "APIDIRECT",
             "retrieved_at": "2026-07-28T01:00:00+00:00",
             "purge_after": "2026-10-26T01:00:00+00:00",
@@ -740,7 +755,7 @@
             "payload_withheld": "api.expose_raw_payloads is false; the normalised signal above is the evidence surface"
           },
           "query": {
-            "query_id": 58,
+            "query_id": 49,
             "source_type": "SOCIAL",
             "endpoint": "/v1/news/articles",
             "params_withheld": "api.expose_raw_payloads is false",
@@ -756,10 +771,10 @@
           "signal": {
             "signal_id": 36,
             "iteration_id": 5,
-            "raw_id": 54,
+            "raw_id": 45,
             "signal_type": "SOCIAL",
-            "city_id": 8,
-            "location_id": 8,
+            "city_id": 9,
+            "location_id": 9,
             "track": "AIRSHOW",
             "observed_at": "2026-07-27T08:30:00+00:00",
             "quality": 0.9,
@@ -767,6 +782,7 @@
             "state_reason": "meets the confirmation floor with a usable timestamp",
             "collection_class": "INTERMEDIARY_LIVE",
             "collection_basis": "APIDIRECT /v1/news/articles: retrieved for this request",
+            "stream": "local_news",
             "url": "https://reuters.com/world/us/phoenix-airshow-2026",
             "author": "John Roe",
             "platform": "news",
@@ -813,34 +829,34 @@
             "is_on_airport": null,
             "is_peer_to_peer": null,
             "field_map_ver": null,
-            "contribution": 0.041731
+            "contribution": 0.042677
           },
-          "contribution": 0.041731,
+          "contribution": 0.042677,
           "receipt": {
-            "receipt_id": 8,
+            "receipt_id": 12,
             "kind": "TRIAGE",
             "provider": "https://generativelanguage.googleapis.com/v1beta/openai/",
             "model_requested": "gemini-3.5-flash",
             "model_served": null,
             "response_id": null,
             "system_fingerprint": null,
-            "prompt_version": "reference-relevance/1-strict",
-            "prompt_hash": "e2556344fdb32a8f645d09d22d1ed6d1",
-            "prompt_user_hash": "0443c0ada7e7757cfd32996fd0b60e62",
+            "prompt_version": "reference-relevance/2-news-strict",
+            "prompt_hash": "f85c5ce90ede3fe3394fdc453891513f",
+            "prompt_user_hash": "d628a66decfb3f2b460204f50d16933c",
             "schema_version": "triage/1",
             "rules_version": "sensitivity/1",
             "normaliser_version": "provenance/2",
             "config_hash": "c29333a7e10af79d4cb9e6bf80f36fda",
-            "input_hash": "39cac9022fe21460675781fe609eccdb",
+            "input_hash": "db5ae6462a0d30e79359745681a2c5ae",
             "code_revision": "0000000",
-            "package_version": "0.1.0",
-            "mission_id": "reference/1",
-            "mission_hash": "3ad99e22c0068dee5523d38d39f959d2750162951766f07708233f17a52ab484",
+            "package_version": "0.3.0",
+            "mission_id": "reference/2",
+            "mission_hash": "6bcf3d40af676535a7ecec5d066a58035df9fa1ab6c3edf7f27bffc785a38060",
             "attempts": 1,
             "created_at": "2026-07-28T01:00:00+00:00"
           },
           "raw": {
-            "raw_id": 54,
+            "raw_id": 45,
             "provider": "APIDIRECT",
             "retrieved_at": "2026-07-28T01:00:00+00:00",
             "purge_after": "2026-10-26T01:00:00+00:00",
@@ -849,7 +865,7 @@
             "payload_withheld": "api.expose_raw_payloads is false; the normalised signal above is the evidence surface"
           },
           "query": {
-            "query_id": 58,
+            "query_id": 49,
             "source_type": "SOCIAL",
             "endpoint": "/v1/news/articles",
             "params_withheld": "api.expose_raw_payloads is false",

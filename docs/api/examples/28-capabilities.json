@@ -15,9 +15,9 @@
       "mission": {
         "configured": true,
         "id": "reference",
-        "version": "1",
-        "digest": "3ad99e22c0068dee5523d38d39f959d2750162951766f07708233f17a52ab484",
-        "description": "Synthetic crowd-convergence mission used by the test suite and by contract generation. Detects a large scheduled gathering forming in a city from the same four families a real mission would use: chatter and local news, inbound charter and display aviation, lodging scarcity near the venue, and rental fleet drawdown at the airport.",
+        "version": "2",
+        "digest": "6bcf3d40af676535a7ecec5d066a58035df9fa1ab6c3edf7f27bffc785a38060",
+        "description": "Synthetic crowd-convergence mission used by the test suite and by contract generation. Detects a large scheduled gathering forming in a city from the families a real mission would use: social chatter and local news reporting (two streams over one feed, the second promoted to its own banding family), inbound charter and display aviation, lodging scarcity near the venue, and rental fleet drawdown at the airport.",
         "tracks": [
           "CONCERT_TOUR",
           "SPORTING_EVENT",
@@ -29,6 +29,36 @@
           "AIRFIELD",
           "FAIRGROUND",
           "OTHER"
+        ],
+        "streams": [
+          {
+            "id": "chatter",
+            "platforms": [
+              "twitter",
+              "reddit"
+            ],
+            "family": "SOCIAL"
+          },
+          {
+            "id": "local_news",
+            "platforms": [
+              "news"
+            ],
+            "family": "LOCAL_NEWS"
+          }
+        ],
+        "families": [
+          "SOCIAL",
+          "FLIGHT",
+          "LODGING",
+          "CAR",
+          "LOCAL_NEWS"
+        ],
+        "collects": [
+          "SOCIAL",
+          "FLIGHT",
+          "LODGING",
+          "CAR"
         ]
       },
       "tracks": [

@@ -67,6 +67,7 @@
           "pickup_location": "PHX"
         }
       ],
+      "calendar_events": 0,
       "warnings": [],
       "tunables": {
         "budget": {

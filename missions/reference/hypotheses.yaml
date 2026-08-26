@@ -66,6 +66,23 @@ FLIGHT:
 
     '
   when: FLIGHT_CATEGORY_UNCONFIRMED
+LOCAL_NEWS:
+- code: ROUTINE_COVERAGE
+  statement: 'Scheduled civic reporting — a council agenda, a seasonal
+    preview, a works notice — describing no unusual convergence.
+
+    '
+  when: SOLE_FAMILY
+- code: SYNDICATED_REPRINT
+  statement: 'One newsroom''s story reprinted across outlets, reading as
+    several confirmations of preparations that were reported once.
+
+    '
+  weakened_by: 'Corroboration counts distinct publishers AND distinct claims
+    over every stream together, so one story in many outlets is one claim,
+    not several.
+
+    '
 SOCIAL:
 - code: RUMOUR_AMPLIFICATION
   statement: 'Coordinated or organic amplification of a claim that describes

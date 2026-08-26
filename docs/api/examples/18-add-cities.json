@@ -49,7 +49,7 @@
           "pickup_location": "PHX"
         },
         {
-          "city_id": 5,
+          "city_id": 6,
           "name": "Tucson",
           "state": "AZ",
           "is_seed": true,
@@ -63,6 +63,7 @@
           "pickup_location": "TUS"
         }
       ],
+      "calendar_events": 4,
       "warnings": [],
       "tunables": {},
       "config_hash": "a1ff6aeb4be4b32adf5912a18a3121da"

@@ -116,6 +116,16 @@ class SessionIn(RequestModel):
                     "caller is not thereby trusted with the filesystem. An "
                     "unresolvable city in the file is refused by name, never "
                     "silently dropped.")
+    calendar_set: str | None = Field(
+        default=None, max_length=120,
+        description="NAME of a calendar file in the input directory "
+                    "(`inputs.dir`), without the extension. Not a path, for "
+                    "the same reason as `input_set`. Scheduled events the "
+                    "operator already knows about: shown to the triage model "
+                    "as context, recorded on any correlation whose window "
+                    "they overlap, and NEVER an input to a score. More can "
+                    "be appended between iterations via "
+                    "`POST /v1/sessions/{id}/calendar`.")
     #: Whether the system may collect against a city the user did not name.
     #: False keeps collection strictly inside the listed jurisdictions.
     expand_cities: bool = False
@@ -156,6 +166,46 @@ class SessionIn(RequestModel):
                 "A session needs at least one city: pass `cities`, or "
                 "`input_set` naming a file in the input directory.")
         return self
+
+
+class CalendarAppendIn(RequestModel):
+    """Append events from a calendar file, between iterations."""
+
+    calendar_set: str = Field(
+        min_length=1, max_length=120,
+        description="NAME of a calendar file in `inputs.dir` (not a path). "
+                    "Loaded all-or-nothing; events already on the session "
+                    "become warnings rather than errors, so re-loading a "
+                    "grown file is a safe way to append.")
+
+
+class CalendarEventOut(BaseModel):
+    event_id: int
+    name: str
+    city: str = Field(description="The city as the operator wrote it.")
+    city_canonical: str = Field(
+        description="The resolved form correlation matching keys on.")
+    starts_at: str = Field(description="Canonical ISO instant; a bare date "
+                                       "in the file became 00:00Z.")
+    ends_at: str = Field(description="Canonical ISO instant; an omitted end "
+                                     "became the end of the start's day.")
+    category: str | None = Field(
+        default=None, description="The operator's own words; the engine "
+                                  "constrains nothing here.")
+    note: str | None = None
+    source_name: str | None = Field(
+        default=None, description="Which calendar file supplied it.")
+    added_at: str = Field(
+        description="When the event was appended. Load-bearing: an "
+                    "iteration's triage context is exactly the events with "
+                    "added_at <= its start, so later appends never change "
+                    "what an earlier receipt hashed.")
+
+
+class CalendarOut(BaseModel):
+    session_id: int
+    events: list[CalendarEventOut] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class CitiesIn(RequestModel):
@@ -255,6 +305,12 @@ class SessionOut(BaseModel):
     tracks: list[str] = Field(default_factory=list,
                               description=TRACKS_FIELD)
     cities: list[CityOut] = Field(default_factory=list)
+    calendar_events: int = Field(
+        default=0,
+        description="How many operator-calendar events this session holds. "
+                    "`GET /v1/sessions/{id}/calendar` lists them; they are "
+                    "context for triage and annotation on correlations, "
+                    "never a scoring input.")
     #: Cities whose airport or pickup mapping could not be resolved. Surfaced
     #: here rather than discovered mid-iteration as a SKIPPED_NO_MAPPING query.
     warnings: list[str] = Field(default_factory=list)
@@ -557,6 +613,10 @@ class AlertTupleOut(BaseModel):
     confidence score. JSON has no tuple type, so `evidence` is a fixed
     four-element array in that exact order and the summary and confidence stay
     addressable beside it rather than being appended as positions five and six.
+
+    Mission streams do not change the shape: every social-feed observation —
+    whatever stream found it, and whatever family that stream counts as in
+    banding — lives in the first element, each entry carrying its `stream`.
     """
 
     alert_id: int
@@ -579,15 +639,19 @@ class CorrelationOut(BaseModel):
     distinct_types: int = 0
     data_completeness: float = Field(
         default=1.0,
-        description="Share of the four signal families collected at all. A "
+        description="Share of the mission's signal families collected at "
+                    "all — the engine's four, plus any stream the mission "
+                    "promotes to a family of its own. A "
                     "family counts as missing only when NOTHING in it was "
                     "collected — see `failed_families`.")
     band_capped: bool = False
     failed_sources: list[str] = Field(
         default_factory=list,
         description="Every failed collection as `SOURCE_TYPE:endpoint`, e.g. "
-                    "`LODGING:/search`. Finer than `failed_families`, and does "
-                    "NOT drive `data_completeness`.")
+                    "`LODGING:/search`. A social loss attributable to one "
+                    "mission stream appears as `SOCIAL(<stream>)`. Finer than "
+                    "`failed_families`, and does NOT drive "
+                    "`data_completeness`.")
     failed_families: list[str] = Field(
         default_factory=list,
         description="Signal families with NOTHING collected — what "
@@ -659,12 +723,15 @@ class EvidenceOut(BaseModel):
     distinct_types: int = 0
     data_completeness: float = Field(
         default=1.0,
-        description="Share of the four signal families that were collected at "
-                    "all. A family counts as missing only when NOTHING in it "
-                    "was collected (9.11): if the lodging availability "
-                    "endpoint failed and the price endpoint succeeded, lodging "
-                    "was measured and does not count against this. Compute it "
-                    "as `1 - len(failed_families) / 4`.")
+        description="Share of the mission's signal families collected at "
+                    "all — the engine's four, plus any stream the mission "
+                    "promotes to a family of its own; `GET /v1/capabilities` "
+                    "reports the full list as `mission.families`. A family "
+                    "counts as missing only when NOTHING in it was collected "
+                    "(9.11): if the lodging availability endpoint failed and "
+                    "the price endpoint succeeded, lodging was measured and "
+                    "does not count against this. Compute it as "
+                    "`1 - len(failed_families) / len(mission.families)`.")
     failed_sources: list[str] = Field(
         default_factory=list,
         description="Every failed collection as `SOURCE_TYPE:endpoint` — for "
@@ -673,8 +740,10 @@ class EvidenceOut(BaseModel):
                     "happens at `/availability` still reports `/search`; the "
                     "query row's `skip_reason` carries the precise cause. "
                     "Where no endpoint was recorded the bare source type "
-                    "appears. This is finer than `failed_families` and does "
-                    "NOT drive `data_completeness`.")
+                    "appears, and a social loss attributable to one mission "
+                    "stream appears as `SOCIAL(<stream>)`. This is finer than "
+                    "`failed_families` and does NOT drive "
+                    "`data_completeness`.")
     #: 9.11. The families with nothing collected at all — the subset that
     #: `data_completeness` is computed from. Exposed because a reader given the
     #: number and not its inputs cannot check it.
@@ -720,6 +789,20 @@ class EvidenceOut(BaseModel):
     #: assessment, and one a reader must be able to tell from a new
     #: observation. Null on a correlation computed before the check existed.
     evidence_freshness: dict[str, Any] | None = None
+    config_hash: str | None = Field(
+        default=None,
+        description=(
+            "Fingerprint of the analytical configuration this score was "
+            "computed under — the same value the iteration's classification "
+            "receipts carry, so a reader can confirm the arithmetic and the "
+            "model judgements ran under one set of tunables. Correlation "
+            "involves no model and therefore writes no receipt of its own; "
+            "without this the settings behind a score lived only in a config "
+            "file that anyone may edit afterwards, and re-scoring a stored "
+            "iteration could silently produce different numbers. Compare it "
+            "against `GET /v1/capabilities`; a mismatch means the tunables "
+            "have moved since, not that the score is wrong. Null on a "
+            "correlation computed before this was recorded."))
     #: 9.10. Per flight kind: whether it was scored as excess over this city's
     #: normal traffic, what that normal was, and what was observed.
     #: `UNBASELINED` means the absolute count stood because there were too few
@@ -747,6 +830,18 @@ class EvidenceOut(BaseModel):
             "claim). Empty classes are omitted. The absence of `DIRECT` is "
             "the standing fact about this deployment: every provider here is "
             "an intermediary."))
+    calendar_matches: list[dict[str, Any]] | None = Field(
+        default=None,
+        description=(
+            "Operator-calendar events overlapping this correlation's window, "
+            "snapshotted verbatim at scoring time (event_id, name, city, "
+            "starts_at, ends_at, category, note, added_at) so the row stays "
+            "self-contained after later appends. ANNOTATION ONLY: nothing "
+            "here moved the score or the band — the SCHEDULED_EVENT entry in "
+            "`alternatives` is where a reader is told a planned event would "
+            "produce the same pattern. `null` on a correlation computed "
+            "before the feature existed or for a session with no calendar; "
+            "`[]` means a calendar exists and nothing matched."))
     signals: list[dict[str, Any]] = Field(default_factory=list)
     #: How the summary was produced (8.1) — provider, the model actually
     #: served, prompt and rules versions, and the hashes that make two

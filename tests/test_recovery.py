@@ -516,7 +516,9 @@ class TestAbandon:
             "SELECT * FROM correlations WHERE iteration_id = ? "
             "AND track = 'AIRSHOW'", (iteration,))
         assert correlation is not None, "an abandoned iteration must still score"
-        assert correlation["data_completeness"] == 0.75
+        # One family lost of the five the mission defines (the four engine
+        # families plus the promoted LOCAL_NEWS stream family).
+        assert correlation["data_completeness"] == 0.8
         assert "CAR" in correlation["failed_sources"]
         assert correlation["band"] != "HIGH"
 

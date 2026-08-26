@@ -66,8 +66,46 @@ SCORING_KINDS: tuple[str, ...] = (
     "social", "flight_M", "flight_J", "lodging", "car",
 )
 
+#: The non-social kinds, which no mission can rename or remove. With streams
+#: declared, a track's weight rows are its stream ids plus exactly these.
+NON_SOCIAL_KINDS: tuple[str, ...] = tuple(
+    k for k in SCORING_KINDS if k != "social")
+
+#: Platform names the social feed can collect. Engine vocabulary: they name
+#: the three APIDirect endpoints, and `queueing.SOCIAL_ENDPOINTS` must carry
+#: exactly these keys (a test holds the two together). A stream chooses which
+#: of them it searches, not what they are.
+SOCIAL_PLATFORMS: tuple[str, ...] = ("twitter", "reddit", "news")
+
+#: Kind names a stream id may not take, case-insensitively. `social` is NOT
+#: here: it names the implicit stream, and allowing a pack to declare it
+#: explicitly is what makes "one stream called social over every platform
+#: behaves exactly like no streams at all" a statement a test can make.
+RESERVED_STREAM_IDS: frozenset[str] = frozenset(
+    k.lower() for k in SCORING_KINDS if k != "social") | {"flight_ambiguous"}
+
+#: Stream ids are lower snake — they ARE scoring kinds, and the weight table
+#: spells kinds that way.
+_STREAM_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+
+#: Keys a stream entry in streams.yaml may carry.
+STREAM_KEYS: frozenset[str] = frozenset({
+    "platforms", "family", "lexicon", "relevance_strict", "relevance_broad",
+})
+
+#: The relevance legs a stream may override, per leg independently.
+STREAM_PROMPT_SLOTS: tuple[str, ...] = ("relevance_strict", "relevance_broad")
+
 #: Signal families a hypothesis set may key on. Same reasoning as SCORING_KINDS.
 FAMILIES: tuple[str, ...] = ("SOCIAL", "FLIGHT", "LODGING", "CAR")
+
+#: Which family each non-social scoring kind belongs to. Mirrors
+#: `base.scoring.KIND_FAMILY` for the kinds a weight table names; kept here so
+#: the loader does not import the scorer.
+_KIND_FAMILY: dict[str, str] = {
+    "flight_M": "FLIGHT", "flight_J": "FLIGHT",
+    "lodging": "LODGING", "car": "CAR",
+}
 
 #: FR24 category codes. The vendor's vocabulary, not the mission's — a mission
 #: says which codes each of its tracks flies in, not what the codes mean.
@@ -84,8 +122,9 @@ PROMPTS: tuple[str, ...] = (
 #:
 #: `docs/` is the mission's own prose — requiring every note to be declared
 #: would make writing one a schema change. `inputs/` is the operator's
-#: geography for this mission, which travels with the pack for convenience but
-#: is chosen per session by name and recorded on the session itself. `tests/`
+#: geography for this mission, which travels with the pack for convenience and
+#: is chosen per session by name; the resolved cities and key locations are
+#: what the session records, not the file's name. `tests/`
 #: holds the pack's own checks: a claim like "these 29 county-to-seat pairs are
 #: hand-verified" is the PACK's to make, so it is the pack that must carry the
 #: test, and the engine's suite collects it wherever the pack is mounted. The
@@ -107,7 +146,7 @@ CARRIED_FILES: frozenset[str] = frozenset({"README.md"})
 #: only find by having their pack refused.
 MANIFEST_KEYS: frozenset[str] = frozenset({
     "id", "version", "description", "files", "tracks", "location_types",
-    "thresholds", "prompts",
+    "thresholds", "prompts", "collects",
 })
 #: The subset without which a pack cannot run. `description` and `thresholds`
 #: are optional; `files` is checked separately, because an empty pack is legal
@@ -118,6 +157,11 @@ REQUIRED_MANIFEST_KEYS: tuple[str, ...] = (
 SCORING_KEYS: frozenset[str] = frozenset({
     "weights", "flight_categories", "baselined_categories",
 })
+
+#: Which of the engine's four families a mission collects at all. SOCIAL is
+#: not optional: every paid family is TIPPED by a social judgement, so a pack
+#: that dropped it would enqueue nothing and report every city as quiet.
+COLLECTABLE_FAMILIES: frozenset[str] = frozenset(FAMILIES)
 GEOGRAPHY_KEYS: frozenset[str] = frozenset({"equivalents", "publishers"})
 FACILITY_KEYS: frozenset[str] = frozenset({"aliases", "tokens", "spellings"})
 
@@ -132,6 +176,28 @@ THRESHOLD_SECTIONS: frozenset[str] = frozenset({
 
 class MissionError(ValueError):
     """A pack that cannot be trusted. The message always names the file."""
+
+
+@dataclass(frozen=True)
+class Stream:
+    """One named watch over the social feed.
+
+    A stream is a lens: its own platform subset, its own per-track lexicon,
+    its own scoring weight (a row in scoring.yaml keyed by this id), and
+    optionally its own relevance criteria. Where it counts in banding is the
+    `family` — SOCIAL means a sub-kind of the SOCIAL family, exactly as
+    flight_M and flight_J are sub-kinds of FLIGHT; any other name promotes it
+    to a family of its own, counting toward `distinct_types` and the
+    completeness denominator.
+    """
+
+    id: str
+    platforms: tuple[str, ...]
+    family: str
+    lexicon: dict[str, tuple[tuple[str, ...], ...]]
+    #: slot -> (prompt text, version label), for the legs this stream
+    #: overrides. A missing slot inherits the mission-level leg.
+    relevance: dict[str, tuple[str, str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -202,6 +268,34 @@ class Mission:
     #: Every declared member, relative to `path`, with its own hash.
     members: tuple[tuple[str, str], ...] = field(default_factory=tuple)
 
+    #: The mission's streams over the social feed, in declaration order.
+    #: Empty means the pack declared none and runs one IMPLICIT stream: every
+    #: configured platform, the mission-level lexicon, the mission-level
+    #: relevance legs, the weight row `social` — byte-identical to a pack
+    #: written before streams existed.
+    streams: tuple[Stream, ...] = ()
+    #: The scoring kinds the social feed produces: the stream ids, or
+    #: ("social",) for the implicit stream. Derived at load, stored so every
+    #: consumer reads one answer.
+    social_kinds: tuple[str, ...] = ("social",)
+    #: stream id -> the family it counts as in banding and completeness.
+    stream_families: dict[str, str] = field(
+        default_factory=lambda: {"social": "SOCIAL"})
+    #: Every family this mission's evidence can occupy: the engine's four,
+    #: plus promoted stream families in declaration order after SOCIAL. The
+    #: length of this tuple is the data_completeness denominator.
+    families: tuple[str, ...] = FAMILIES
+    #: Every kind a weight table names: social kinds + the non-social kinds
+    #: of the families this mission collects. What `scoring.TrackModel`
+    #: validates against.
+    scoring_kinds: tuple[str, ...] = SCORING_KINDS
+    #: The engine families this mission collects at all, in engine order.
+    #: A family absent here is never queried, never scored, never counted in
+    #: the completeness denominator and — this is the point — never a coverage
+    #: gap: nothing was attempted, so nothing failed. Defaults to all four, so
+    #: a pack that says nothing behaves exactly as before.
+    collects: tuple[str, ...] = FAMILIES
+
     @property
     def label(self) -> str:
         return f"{self.identifier}/{self.version}"
@@ -224,6 +318,32 @@ class Mission:
             return value
         return self.track(value, field_name)
 
+    def stream_id(self, value: str, field: str = "stream") -> str:
+        """Return `value` if it names one of this mission's streams.
+
+        Every stream-carrying write funnels through here, exactly as `track`
+        and `location_type` do — the stream vocabulary is the pack's, so the
+        pack is what a value is checked against. NULL never reaches here: it
+        is the implicit stream and always legal.
+        """
+        if self.streams and value in self.stream_families:
+            return value
+        if not self.streams:
+            raise MissionError(
+                f"{field}={value!r} is not a stream of mission {self.label}: "
+                f"this mission defines no streams, so only the implicit "
+                f"stream (stored as NULL) exists.")
+        raise MissionError(
+            f"{field}={value!r} is not a stream of mission {self.label}; "
+            f"expected one of {[s.id for s in self.streams]}")
+
+    def stream_lexicons(self) -> list[tuple[str | None, dict]]:
+        """(stream id, lexicon) per stream — or one (None, lexicon) pair for
+        the implicit stream, so a caller writes one loop for both shapes."""
+        if self.streams:
+            return [(s.id, s.lexicon) for s in self.streams]
+        return [(None, self.lexicon)]
+
     def location_type(self, value: str, field_name: str = "location_type") -> str:
         if value not in self.location_types:
             raise MissionError(
@@ -238,9 +358,37 @@ class Mission:
             f"  digest {self.digest[:12]} over {len(self.members)} file(s)",
             f"  tracks: {', '.join(self.tracks)}",
             f"  location types: {', '.join(self.location_types)}",
-            f"  lexicon: {sum(len(g) for g in self.lexicon.values())} query "
-            f"group(s) across {len(self.lexicon)} track(s)",
+            *self._describe_collects(),
+            *self._describe_social(),
         ]
+
+    def _describe_collects(self) -> list[str]:
+        """Only when a family is switched OFF. A pack collecting all four is
+        the ordinary case and does not need a line saying so; a pack that has
+        stopped buying three vendors' data must say it out loud at startup,
+        because the absence is otherwise indistinguishable from an outage."""
+        absent = [f for f in FAMILIES if f not in self.collects]
+        if not absent:
+            return []
+        return [f"  collects: {', '.join(self.collects)} "
+                f"(NOT collecting {', '.join(absent)} — never queried, never "
+                f"a coverage gap)"]
+
+    def _describe_social(self) -> list[str]:
+        if not self.streams:
+            return [
+                f"  lexicon: {sum(len(g) for g in self.lexicon.values())} "
+                f"query group(s) across {len(self.lexicon)} track(s)",
+            ]
+        lines = [f"  streams: {len(self.streams)}; families: "
+                 f"{', '.join(self.families)}"]
+        for stream in self.streams:
+            groups = sum(len(g) for g in stream.lexicon.values())
+            overridden = ",".join(sorted(stream.relevance)) or "inherited"
+            lines.append(
+                f"    {stream.id}: {','.join(stream.platforms)} -> "
+                f"{stream.family}; {groups} group(s); relevance {overridden}")
+        return lines
 
 
 # ---------------------------------------------------------------------------
@@ -348,6 +496,16 @@ def _yaml(root: Path, name: str) -> Any:
     try:
         with open(root / name, encoding="utf-8") as handle:
             return yaml.safe_load(handle)
+    except FileNotFoundError as exc:
+        # A named refusal, not a raw traceback. `_declared_members` already
+        # refuses a DECLARED file that is missing; this covers the loader
+        # asking for a file the manifest legitimately omitted — reachable the
+        # day a caller's branching is wrong, and the message should say whose
+        # fault that is.
+        raise MissionError(
+            f"{name} does not exist in this pack, but the loader asked for "
+            f"it. Declare it in files:, or report this as an engine bug if "
+            f"the manifest is correct.") from exc
     except yaml.YAMLError as exc:
         raise MissionError(f"{name}: not valid YAML — {exc}") from exc
 
@@ -399,26 +557,26 @@ def _known_tracks(mapping: Mapping[str, Any], tracks: tuple[str, ...],
                 f"the same behaviour and mean opposite things.")
 
 
-def _lexicon(raw: Any, tracks: tuple[str, ...]
+def _lexicon(raw: Any, tracks: tuple[str, ...], where: str = "lexicon.yaml"
              ) -> dict[str, tuple[tuple[str, ...], ...]]:
-    data = _mapping(raw, "lexicon.yaml")
-    _known_tracks(data, tracks, "lexicon.yaml")
+    data = _mapping(raw, where)
+    _known_tracks(data, tracks, where)
     out: dict[str, tuple[tuple[str, ...], ...]] = {}
     for track, groups in data.items():
         if not isinstance(groups, (list, tuple)) or not groups:
             raise MissionError(
-                f"lexicon.yaml: {track} must be a non-empty list of term groups")
+                f"{where}: {track} must be a non-empty list of term groups")
         built: list[tuple[str, ...]] = []
         for index, group in enumerate(groups):
             if not isinstance(group, (list, tuple)) or not group:
                 raise MissionError(
-                    f"lexicon.yaml: {track}[{index}] must be a non-empty list "
+                    f"{where}: {track}[{index}] must be a non-empty list "
                     f"of search terms")
             terms = []
             for term in group:
                 if not isinstance(term, str) or not term.strip():
                     raise MissionError(
-                        f"lexicon.yaml: {track}[{index}] holds a term that is "
+                        f"{where}: {track}[{index}] holds a term that is "
                         f"not a non-empty string")
                 terms.append(term.strip())
             built.append(tuple(terms))
@@ -426,18 +584,20 @@ def _lexicon(raw: Any, tracks: tuple[str, ...]
     return out
 
 
-def _weights(raw: Any, tracks: tuple[str, ...]) -> dict[str, dict[str, float]]:
+def _weights(raw: Any, tracks: tuple[str, ...],
+             expected_kinds: tuple[str, ...] = SCORING_KINDS
+             ) -> dict[str, dict[str, float]]:
     data = _mapping(raw, "scoring.yaml: weights")
     _known_tracks(data, tracks, "scoring.yaml: weights")
     out: dict[str, dict[str, float]] = {}
     for track, kinds in data.items():
         values = _mapping(kinds, f"scoring.yaml: weights.{track}")
-        unknown = sorted(set(values) - set(SCORING_KINDS))
+        unknown = sorted(set(values) - set(expected_kinds))
         if unknown:
             raise MissionError(
                 f"scoring.yaml: weights.{track} names unknown scoring kind(s) "
-                f"{', '.join(unknown)}; expected {list(SCORING_KINDS)}")
-        missing = [k for k in SCORING_KINDS if k not in values]
+                f"{', '.join(unknown)}; expected {list(expected_kinds)}")
+        missing = [k for k in expected_kinds if k not in values]
         if missing:
             raise MissionError(
                 f"scoring.yaml: weights.{track} has no weight for "
@@ -493,13 +653,14 @@ def _string_map(raw: Any, where: str) -> dict[str, str]:
     return out
 
 
-def _hypotheses(raw: Any) -> dict[str, tuple[dict[str, str], ...]]:
+def _hypotheses(raw: Any, allowed_families: tuple[str, ...] = FAMILIES
+                ) -> dict[str, tuple[dict[str, str], ...]]:
     data = _mapping(raw, "hypotheses.yaml")
-    unknown = sorted(set(data) - set(FAMILIES))
+    unknown = sorted(set(data) - set(allowed_families))
     if unknown:
         raise MissionError(
             f"hypotheses.yaml names unknown family/families "
-            f"{', '.join(unknown)}; expected {list(FAMILIES)}")
+            f"{', '.join(unknown)}; expected {list(allowed_families)}")
     out: dict[str, tuple[dict[str, str], ...]] = {}
     for family, entries in data.items():
         if not isinstance(entries, (list, tuple)):
@@ -523,6 +684,12 @@ def _hypotheses(raw: Any) -> dict[str, tuple[dict[str, str], ...]]:
                 raise MissionError(
                     f"hypotheses.yaml: {family}[{index}].code must be upper "
                     f"snake case")
+            if str(item["code"]) == hypotheses.SCHEDULED_EVENT_CODE:
+                raise MissionError(
+                    f"hypotheses.yaml: {family}[{index}].code "
+                    f"{hypotheses.SCHEDULED_EVENT_CODE} is reserved by the "
+                    f"engine for operator-calendar matches; choose another "
+                    f"code")
             when = str(item.get("when") or "ALWAYS").upper()
             if when not in hypotheses.CONDITIONS:
                 raise MissionError(
@@ -542,6 +709,43 @@ def _hypotheses(raw: Any) -> dict[str, tuple[dict[str, str], ...]]:
             })
         out[family] = tuple(built)
     return out
+
+
+def _collects(raw: Any) -> tuple[str, ...]:
+    """Which engine families this pack collects. Refuses anything else.
+
+    A mission that scores only chatter should not be made to buy flight,
+    lodging and rental-car data to ignore it — three vendors, three sets of
+    credentials and a per-iteration spend, for evidence no weight will ever
+    read. Declaring the families is how a pack says so once, instead of
+    saying it four times in zeroed weight rows that nothing enforces.
+    """
+    if not isinstance(raw, (list, tuple)) or not raw:
+        raise MissionError(
+            f"{MANIFEST}: collects must be a non-empty list of engine "
+            f"families from {sorted(COLLECTABLE_FAMILIES)}. Omit the key "
+            f"entirely to collect all four.")
+    out: list[str] = []
+    for family in raw:
+        name = str(family)
+        if name not in COLLECTABLE_FAMILIES:
+            raise MissionError(
+                f"{MANIFEST}: collects names {name!r}, which is not an engine "
+                f"family; expected any of {sorted(COLLECTABLE_FAMILIES)}. A "
+                f"promoted stream family is declared in streams.yaml and is "
+                f"collected through the social feed, so it does not belong "
+                f"here.")
+        if name in out:
+            raise MissionError(f"{MANIFEST}: collects lists {name!r} twice")
+        out.append(name)
+    if "SOCIAL" not in out:
+        raise MissionError(
+            f"{MANIFEST}: collects must include SOCIAL. Every other family is "
+            f"TIPPED by a social judgement — a pack collecting none would "
+            f"enqueue nothing at all and report every city as quiet.")
+    # Engine order, not declaration order: this tuple decides the order
+    # families are reported in, and that belongs to the engine.
+    return tuple(f for f in FAMILIES if f in out)
 
 
 def _thresholds(raw: Any) -> dict[str, Any]:
@@ -619,6 +823,101 @@ def _prompts(root: Path, declared: Mapping[str, Any]
     return texts, versions
 
 
+def _streams(root: Path, raw: Any, tracks: tuple[str, ...]
+             ) -> tuple[Stream, ...]:
+    """Validate streams.yaml. Every refusal names the stream and the field."""
+    data = _mapping(raw, "streams.yaml")
+    if not data:
+        raise MissionError(
+            "streams.yaml declares no streams. A pack that wants exactly one "
+            "watch over the whole feed should declare no streams.yaml at all "
+            "and use lexicon.yaml — one implicit stream is that shape's name.")
+
+    out: list[Stream] = []
+    for stream_id, entry in data.items():
+        where = f"streams.yaml: {stream_id}"
+        if not isinstance(stream_id, str) or not _STREAM_ID_RE.match(stream_id):
+            raise MissionError(
+                f"streams.yaml: stream id {stream_id!r} must be lower snake "
+                f"case ([a-z][a-z0-9_]*) — a stream id IS a scoring kind, and "
+                f"the weight table spells kinds that way")
+        if stream_id.lower() in RESERVED_STREAM_IDS:
+            raise MissionError(
+                f"streams.yaml: stream id {stream_id!r} collides with an "
+                f"engine scoring kind. The non-social kinds "
+                f"{list(NON_SOCIAL_KINDS)} are the engine's; a stream under "
+                f"one of their names would make a weight row unreadable.")
+        entry = _mapping(entry, where)
+        unknown = sorted(set(entry) - STREAM_KEYS)
+        if unknown:
+            raise MissionError(
+                f"{where} has unknown key(s) {', '.join(unknown)}; expected "
+                f"{sorted(STREAM_KEYS)}")
+
+        platforms_raw = entry.get("platforms")
+        if not isinstance(platforms_raw, (list, tuple)) or not platforms_raw:
+            raise MissionError(
+                f"{where}: platforms is required — a non-empty subset of "
+                f"{list(SOCIAL_PLATFORMS)}. A stream with no platform would "
+                f"collect nothing and report it as quiet.")
+        platforms: list[str] = []
+        for platform in platforms_raw:
+            if platform not in SOCIAL_PLATFORMS:
+                raise MissionError(
+                    f"{where}: platforms names {platform!r}; the engine "
+                    f"collects {list(SOCIAL_PLATFORMS)}")
+            if platform in platforms:
+                raise MissionError(
+                    f"{where}: platforms lists {platform!r} twice")
+            platforms.append(platform)
+
+        family = str(entry.get("family") or "SOCIAL")
+        if not _VOCAB_RE.match(family):
+            raise MissionError(
+                f"{where}: family {family!r} must be upper snake case")
+        if family in ("FLIGHT", "LODGING", "CAR"):
+            raise MissionError(
+                f"{where}: family {family!r} is refused — those families are "
+                f"collected by their own connectors, and a social stream "
+                f"claiming one would count in their banding slot without "
+                f"their evidence.")
+        if family == UNATTRIBUTED:
+            raise MissionError(
+                f"{where}: family {UNATTRIBUTED!r} is refused for the same "
+                f"reason it cannot be a track: it is engine vocabulary "
+                f"meaning 'not attributed'.")
+
+        if "lexicon" not in entry:
+            raise MissionError(
+                f"{where}: lexicon is required — a stream with no search "
+                f"terms would seed nothing and report a quiet city.")
+        lexicon = _lexicon(entry["lexicon"], tracks, f"{where}.lexicon")
+
+        relevance: dict[str, tuple[str, str]] = {}
+        for slot in STREAM_PROMPT_SLOTS:
+            if slot not in entry:
+                continue
+            leg = _mapping(entry[slot], f"{where}.{slot}")
+            missing_keys = sorted({"file", "version"} - set(leg))
+            if missing_keys:
+                raise MissionError(
+                    f"{where}.{slot} needs {', '.join(missing_keys)}")
+            extra = sorted(set(leg) - {"file", "version"})
+            if extra:
+                raise MissionError(
+                    f"{where}.{slot} has unknown key(s) {', '.join(extra)}")
+            path = _member_path(root, str(leg["file"]))
+            text = path.read_text(encoding="utf-8")
+            if not text.strip():
+                raise MissionError(f"{leg['file']}: prompt is empty")
+            relevance[slot] = (text, str(leg["version"]))
+
+        out.append(Stream(id=stream_id, platforms=tuple(platforms),
+                          family=family, lexicon=lexicon,
+                          relevance=relevance))
+    return tuple(out)
+
+
 # ---------------------------------------------------------------------------
 # Loading
 # ---------------------------------------------------------------------------
@@ -676,6 +975,52 @@ def load(name_or_path: str | Path,
     prompts, prompt_versions = _prompts(
         root, _mapping(manifest["prompts"], f"{MANIFEST}: prompts"))
 
+    # The social feed's shape: either one implicit stream described by
+    # lexicon.yaml, or named streams described by streams.yaml — never both
+    # (two answers to one question) and never neither (the engine would seed
+    # no social queries and report every city as quiet).
+    has_streams = "streams.yaml" in members
+    has_lexicon = "lexicon.yaml" in members
+    if has_streams and has_lexicon:
+        raise MissionError(
+            "streams.yaml and lexicon.yaml are both declared. A pack defines "
+            "its social collection once: either one lexicon for one implicit "
+            "stream, or named streams each carrying its own. Two answers to "
+            "one question.")
+    if not has_streams and not has_lexicon:
+        raise MissionError(
+            "neither lexicon.yaml nor streams.yaml is declared. One of them "
+            "must be: without a lexicon the engine seeds no social queries "
+            "and reports every city as quiet.")
+
+    if has_streams:
+        streams = _streams(root, _yaml(root, "streams.yaml"), tracks)
+        lexicon: dict[str, tuple[tuple[str, ...], ...]] = {}
+        social_kinds = tuple(stream.id for stream in streams)
+        stream_families = {stream.id: stream.family for stream in streams}
+        promoted = []
+        for stream in streams:
+            if stream.family not in FAMILIES and stream.family not in promoted:
+                promoted.append(stream.family)
+    else:
+        streams = ()
+        lexicon = _lexicon(_yaml(root, "lexicon.yaml"), tracks)
+        social_kinds = ("social",)
+        stream_families = {"social": "SOCIAL"}
+        promoted = []
+
+    # Which of the engine's families this pack collects at all. A family it
+    # does not collect leaves the completeness denominator and the weight
+    # table together: it is never queried, so it can never be a gap, and a
+    # zeroed weight row for it would be a second statement of the same fact
+    # that nothing holds to the first.
+    collects = (_collects(manifest["collects"]) if "collects" in manifest
+                else FAMILIES)
+    families = tuple(f for f in FAMILIES if f in collects) + tuple(promoted)
+    scoring_kinds = social_kinds + tuple(
+        k for k in NON_SOCIAL_KINDS
+        if _KIND_FAMILY[k] in collects)
+
     scoring = _mapping(_yaml(root, "scoring.yaml"), "scoring.yaml")
     unknown = sorted(set(scoring) - SCORING_KEYS)
     if unknown:
@@ -719,10 +1064,16 @@ def load(name_or_path: str | Path,
         tracks=tracks,
         location_types=location_types,
         thresholds=_thresholds(manifest.get("thresholds")),
-        lexicon=_lexicon(_yaml(root, "lexicon.yaml"), tracks),
-        weights=_weights(scoring.get("weights"), tracks),
-        flight_categories=_flight_categories(
-            scoring.get("flight_categories"), tracks),
+        lexicon=lexicon,
+        weights=_weights(scoring.get("weights"), tracks, scoring_kinds),
+        # Required only of a pack that collects FLIGHT. Demanding an empty
+        # list per track from one that does not would be a second statement
+        # of what `collects` already says, and two statements of one fact can
+        # disagree.
+        flight_categories=(
+            _flight_categories(scoring.get("flight_categories"), tracks)
+            if "FLIGHT" in collects
+            else {track: () for track in tracks}),
         baselined_categories=frozenset(str(c) for c in baselined),
         equivalents=equivalents,
         jurisdictions=jurisdictions,
@@ -733,10 +1084,16 @@ def load(name_or_path: str | Path,
         facility_tokens=frozenset(str(t) for t in tokens),
         facility_spellings=_string_map(
             facilities.get("spellings"), "facilities.yaml: spellings"),
-        hypotheses=_hypotheses(_yaml(root, "hypotheses.yaml")),
+        hypotheses=_hypotheses(_yaml(root, "hypotheses.yaml"), families),
         prompts=prompts,
         prompt_versions=prompt_versions,
         members=pairs,
+        streams=streams,
+        social_kinds=social_kinds,
+        stream_families=stream_families,
+        families=families,
+        scoring_kinds=scoring_kinds,
+        collects=collects,
     )
 
 

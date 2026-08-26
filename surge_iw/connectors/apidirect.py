@@ -33,12 +33,6 @@ EP_TWITTER = "/v1/twitter/posts"
 EP_REDDIT = "/v1/reddit/posts"
 EP_NEWS = "/v1/news/articles"
 
-PLATFORM_ENDPOINTS: dict[str, str] = {
-    "twitter": EP_TWITTER,
-    "reddit": EP_REDDIT,
-    "news": EP_NEWS,
-}
-
 # Which envelope key holds the records, per endpoint. Chosen explicitly rather
 # than by the old `posts or articles or results` fallback chain, which would
 # silently accept a differently-shaped response as empty.

@@ -33,6 +33,7 @@ from ..agents.orchestrator import (  # noqa: F401
 from ..db import enums
 from ..db.database import SurgeDB, parse_iso
 from ..models import Alert
+from ..services import calendar as calendar_service
 from ..services import geo, governance, inputs, receipts, tunables
 from ..services import mission as mission_service
 from . import contract
@@ -258,8 +259,16 @@ def create_session(
 
     # Every city is resolved by now, whether inline or loaded from a file, and
     # nothing has been written yet. Last point at which a refusal costs the
-    # caller nothing.
+    # caller nothing — so the calendar is validated here too.
     _refuse_unknown_location_types(db, cities)
+    loaded_calendar = None
+    if body.calendar_set:
+        try:
+            loaded_calendar = calendar_service.load(
+                inputs.input_path(body.calendar_set, config),
+                mission=db.mission)
+        except inputs.InputError as exc:
+            raise HTTPException(422, str(exc)) from exc
 
     try:
         session_id = db.insert_session(
@@ -279,6 +288,14 @@ def create_session(
     for line in tunables.describe(overrides):
         db.log("api", "INFO", f"Session {session_id} tunable: {line}",
                session_id=session_id)
+    if loaded_calendar is not None:
+        inserted, dupes = db.insert_calendar_events(
+            session_id, loaded_calendar.events,
+            source_name=loaded_calendar.path.name)
+        warnings.append(
+            f"loaded {inserted} calendar event(s) from {loaded_calendar.path}")
+        warnings.extend(loaded_calendar.warnings)
+        warnings.extend(dupes)
     for city in cities:
         _add_city(db, config, session_id, city, warnings)
     return _session_out(db, config, session_id, warnings)
@@ -326,6 +343,79 @@ def add_cities(
     for city in body.cities:
         _add_city(db, config, session_id, city, warnings)
     return _session_out(db, config, session_id, warnings)
+
+
+@router.get("/v1/sessions/{session_id}/calendar",
+            response_model=schemas.CalendarOut, tags=["sessions"],
+            responses=errors(401, 404, 503))
+def read_calendar(
+    session_id: int,
+    db: SurgeDB = Depends(get_db),
+    _: None = Depends(authenticated),
+) -> schemas.CalendarOut:
+    """The session's operator calendar, oldest addition first."""
+    _session_or_404(db, session_id)
+    return schemas.CalendarOut(
+        session_id=session_id,
+        events=[_calendar_event_out(row)
+                for row in db.calendar_events(session_id)])
+
+
+@router.post("/v1/sessions/{session_id}/calendar", status_code=201,
+             response_model=schemas.CalendarOut, tags=["sessions"],
+             responses=errors(401, 404, 409, 422, 503))
+def append_calendar(
+    session_id: int,
+    body: schemas.CalendarAppendIn,
+    db: SurgeDB = Depends(get_db),
+    config: dict = Depends(get_config),
+    runner: IterationRunner = Depends(get_runner),
+    _: None = Depends(authenticated),
+) -> schemas.CalendarOut:
+    """Append events between iterations, never during one.
+
+    Refused while an iteration runs for the same reason `add_cities` is: the
+    triage context is fixed per iteration at its start (`added_at <=
+    started_at`), and an append landing mid-run would make two batches of one
+    iteration see different calendars — receipts that disagree about what the
+    criteria-context was.
+
+    Events already on the session are warnings rather than errors, so
+    re-loading a grown file is a safe way to append. There is no delete: the
+    calendar is append-only precisely so earlier iterations' prompts stay
+    reconstructible, and an event added in error is corrected by a new
+    session.
+    """
+    _session_or_404(db, session_id)
+    running = runner.running_iteration(session_id)
+    if running is not None:
+        raise HTTPException(
+            409, f"Iteration {running} is running; append calendar events "
+                 f"between iterations")
+    try:
+        loaded = calendar_service.load(
+            inputs.input_path(body.calendar_set, config), mission=db.mission)
+    except inputs.InputError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    inserted, dupes = db.insert_calendar_events(
+        session_id, loaded.events, source_name=loaded.path.name)
+    db.log("api", "INFO",
+           f"Session {session_id}: {inserted} calendar event(s) appended "
+           f"from {loaded.path.name}", session_id=session_id)
+    return schemas.CalendarOut(
+        session_id=session_id,
+        events=[_calendar_event_out(row)
+                for row in db.calendar_events(session_id)],
+        warnings=list(loaded.warnings) + dupes)
+
+
+def _calendar_event_out(row) -> schemas.CalendarEventOut:
+    return schemas.CalendarEventOut(
+        event_id=int(row["event_id"]), name=row["name"],
+        city=row["city_label"], city_canonical=row["city_canonical"],
+        starts_at=row["starts_at"], ends_at=row["ends_at"],
+        category=row["category"], note=row["note"],
+        source_name=row["source_name"], added_at=row["added_at"])
 
 
 def _refuse_unknown_location_types(
@@ -427,6 +517,7 @@ def _session_out(
         session_id=session_id, label=row["label"], status=row["status"],
         created_at=row["created_at"], expand_cities=bool(row["expand_cities"]),
         tracks=db.session_tracks(session_id), cities=cities,
+        calendar_events=len(db.calendar_events(session_id)),
         warnings=warnings,
         tunables=stored,
         config_hash=receipts.config_fingerprint(
@@ -886,6 +977,12 @@ def _evidence_for_correlation(
         # 9.13. Read back rather than recomputed: an alert must say what was
         # true when it was written, not what is true now.
         evidence_freshness=_json(correlation["evidence_freshness_json"], None),
+        config_hash=correlation["config_hash"],
+        # Read back rather than re-matched: the snapshots are the events the
+        # correlation was annotated with under its own windows, and a calendar
+        # appended since must not rewrite them. NULL stays null (no calendar,
+        # or pre-v15); [] stays an empty list (consulted, nothing overlapped).
+        calendar_matches=_json(correlation["calendar_matches_json"], None),
         # 9.4. Counted from the signals rather than stored on the correlation:
         # it is a summary of rows that already carry the value, and a second
         # copy would be one more thing that can disagree with the first.
@@ -1331,6 +1428,22 @@ def _mission_block(loaded) -> dict[str, Any]:
         "description": loaded.description,
         "tracks": list(loaded.tracks),
         "location_types": list(loaded.location_types),
+        # The mission's watches over the social feed, and every family its
+        # evidence can occupy. `families` is what `data_completeness` divides
+        # by and what `distinct_types` counts against — a client reading
+        # either number needs this list, not the engine's fixed four.
+        "streams": [
+            {"id": stream.id, "platforms": list(stream.platforms),
+             "family": stream.family}
+            for stream in getattr(loaded, "streams", ())
+        ],
+        "families": list(getattr(loaded, "families", ())),
+        # Which of the engine's four families this mission collects at all. A
+        # family absent here is never queried and never a coverage gap, so a
+        # client comparing `failed_families` against the engine's four would
+        # otherwise read a deliberate design choice as three permanent
+        # outages.
+        "collects": list(getattr(loaded, "collects", ())),
     }
 
 

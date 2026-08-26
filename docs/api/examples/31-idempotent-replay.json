@@ -3,7 +3,7 @@
   "note": "The same key returns the FIRST response and starts nothing. Identical body, plus Idempotent-Replay: true so a caller can tell the difference.",
   "request": {
     "method": "POST",
-    "path": "/v1/sessions/5/iterations",
+    "path": "/v1/sessions/6/iterations",
     "headers": {
       "Authorization": "Bearer example-token",
       "Idempotency-Key": "contract-demo-key-01"
@@ -20,7 +20,7 @@
     },
     "body": {
       "iteration_id": 4,
-      "session_id": 5,
+      "session_id": 6,
       "seq": 0,
       "status": "PENDING",
       "stage": "SEEDING",

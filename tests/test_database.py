@@ -761,6 +761,119 @@ class TestAlertRoundTrip:
         assert db.get_correlation(first)["band"] == "HIGH"
 
 
+class TestTheStreamFunnel:
+    """The five stream-carrying write paths all validate through the mission,
+    exactly as `track` and `location_type` do. The reference pack declares
+    `chatter` and `local_news`, so those pass; a stream the pack does not
+    define is refused by name with the pack's own list — and NULL, the
+    implicit stream, is always legal."""
+
+    def test_null_passes_everywhere(self, db, session, iteration):
+        city = db.insert_city(session, "Phoenix", canonical="phoenix")
+        assert db.enqueue_query(
+            session_id=session, iteration_id=iteration, source_type="SOCIAL",
+            endpoint="/v1/twitter/posts", params={}, dedup_key="s1",
+            stream=None)
+        assert db.insert_signal(
+            iteration_id=iteration, signal_type="SOCIAL", city_id=city,
+            stream=None, url="https://x.com/1")
+        assert db.record_queue_decision(
+            iteration, "R0_SEED", "NO_MAPPING", source_type="SOCIAL",
+            stream=None)
+        assert db.insert_triage_decision(
+            iteration_id=iteration, raw_id=None, state="REJECTED",
+            rationale="x", model="stub", url="https://x.com/1", stream=None)
+        assert db.insert_triage_skip(
+            iteration_id=iteration, reason="STALE", url="https://x.com/2",
+            stream=None)
+
+    @pytest.mark.parametrize("write", [
+        lambda db, s, i, c: db.enqueue_query(
+            session_id=s, iteration_id=i, source_type="SOCIAL",
+            endpoint="/v1/twitter/posts", params={}, dedup_key="s2",
+            stream="backchannel"),
+        lambda db, s, i, c: db.insert_signal(
+            iteration_id=i, signal_type="SOCIAL", city_id=c,
+            stream="backchannel", url="https://x.com/9"),
+        lambda db, s, i, c: db.record_queue_decision(
+            i, "R0_SEED", "NO_MAPPING", stream="backchannel"),
+        lambda db, s, i, c: db.insert_triage_decision(
+            iteration_id=i, raw_id=None, state="REJECTED", rationale="x",
+            model="stub", stream="backchannel"),
+        lambda db, s, i, c: db.insert_triage_skip(
+            iteration_id=i, reason="STALE", stream="backchannel"),
+    ])
+    def test_a_stream_the_mission_does_not_define_is_refused_by_name(
+        self, db, session, iteration, write
+    ):
+        from surge_iw.services.mission import MissionError
+        city = db.insert_city(session, "Phoenix", canonical="phoenix")
+        with pytest.raises(MissionError) as exc:
+            write(db, session, iteration, city)
+        assert "backchannel" in str(exc.value)
+        assert "expected one of" in str(exc.value)
+        assert "chatter" in str(exc.value), "the refusal names the pack's own"
+
+    def test_a_declared_stream_passes_the_funnel(self, db, session, iteration):
+        """The other half: the reference pack's own vocabulary is legal on
+        every path NULL is."""
+        city = db.insert_city(session, "Phoenix", canonical="phoenix")
+        assert db.insert_signal(
+            iteration_id=iteration, signal_type="SOCIAL", city_id=city,
+            stream="chatter", url="https://x.com/ok")
+        assert db.insert_triage_skip(
+            iteration_id=iteration, reason="STALE", stream="local_news")
+
+
+class TestTheCalendar:
+    """Append-only per-session reference data. The `added_at` filter is what
+    makes triage prompts reconstructible after later appends, so its
+    semantics are pinned here at the storage layer."""
+
+    EVENT = {"name": "Trade Fair", "city_label": "Phoenix, AZ",
+             "city_canonical": "phoenix",
+             "starts_at": "2026-09-04T00:00:00+00:00",
+             "ends_at": "2026-09-06T23:59:59+00:00",
+             "category": "fair", "note": "big"}
+
+    def test_a_batch_shares_one_added_at(self, db, session):
+        inserted, warnings = db.insert_calendar_events(
+            session, [self.EVENT, {**self.EVENT, "name": "Second"}],
+            source_name="cal")
+        assert (inserted, warnings) == (2, [])
+        stamps = {r["added_at"] for r in db.calendar_events(session)}
+        assert len(stamps) == 1, (
+            "one operator action, one instant — reconstruction filters on it")
+
+    def test_a_duplicate_is_a_warning_not_an_error(self, db, session):
+        db.insert_calendar_events(session, [self.EVENT])
+        inserted, warnings = db.insert_calendar_events(session, [self.EVENT])
+        assert inserted == 0
+        assert warnings and "already on this session's calendar" in warnings[0]
+        assert len(db.calendar_events(session)) == 1
+
+    def test_added_before_excludes_later_appends(self, db, session):
+        db.insert_calendar_events(session, [self.EVENT])
+        cutoff = db.calendar_events(session)[0]["added_at"]
+        db.conn.execute(
+            "UPDATE calendar_events SET added_at = ? WHERE name = ?",
+            ("2099-01-01T00:00:00+00:00", "Trade Fair"))
+        db.conn.commit()
+        assert db.calendar_events(session, added_before=cutoff) == []
+
+    def test_ordering_is_insertion_order(self, db, session):
+        db.insert_calendar_events(session, [
+            {**self.EVENT, "name": "B"}, {**self.EVENT, "name": "A"}])
+        assert [r["name"] for r in db.calendar_events(session)] == ["B", "A"]
+
+    def test_city_filter(self, db, session):
+        db.insert_calendar_events(session, [
+            self.EVENT, {**self.EVENT, "city_canonical": "tucson",
+                         "city_label": "Tucson, AZ"}])
+        rows = db.calendar_events(session, city_canonical="tucson")
+        assert [r["city_label"] for r in rows] == ["Tucson, AZ"]
+
+
 class TestGeoCache:
     def test_round_trip(self, db):
         db.put_geo_cache("AIRPORT", "phoenix", ["PHX"], resolved_by="TABLE")

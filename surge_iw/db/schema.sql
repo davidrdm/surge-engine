@@ -100,6 +100,42 @@ CREATE TABLE IF NOT EXISTS geo_cache (
     UNIQUE (kind, lookup_key)
 );
 
+-- The operator's calendar of scheduled events, per session. Context, never
+-- input: TriageAgent shows these to the model as background and
+-- CorrelationAgent records the ones that overlap a scored window — nothing
+-- here ever moves a score or a band.
+--
+-- APPEND-ONLY, and rows are immutable once written. `added_at` is what makes
+-- triage prompts reconstructible byte-exact after later appends: an
+-- iteration's context block is exactly the events with
+-- added_at <= iterations.started_at, so adding events tomorrow cannot change
+-- what yesterday's receipt hashed. There is no delete; an event added in
+-- error is corrected by a new session.
+CREATE TABLE IF NOT EXISTS calendar_events (
+    event_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id       INTEGER NOT NULL REFERENCES sessions(session_id),
+    name             TEXT    NOT NULL,
+    -- The city as the operator wrote it, and the canonical form it resolved
+    -- to at load (refused by name if it could not). Matching is on canonical.
+    city_label       TEXT    NOT NULL,
+    city_canonical   TEXT    NOT NULL,
+    -- Canonical ISO instants. A bare date becomes 00:00Z; an omitted end
+    -- becomes the end of the start's day. ends_at >= starts_at, enforced at
+    -- load rather than here so the refusal can name the event.
+    starts_at        TEXT    NOT NULL,
+    ends_at          TEXT    NOT NULL,
+    -- The operator's own words; deliberately unconstrained. An engine CHECK
+    -- here would make the engine the owner of a vocabulary that is neither
+    -- its nor any mission's.
+    category         TEXT,
+    note             TEXT,
+    source_name      TEXT,               -- which calendar file supplied it
+    added_at         TEXT    NOT NULL,
+    UNIQUE (session_id, city_canonical, name, starts_at)
+);
+CREATE INDEX IF NOT EXISTS idx_calendar_session
+    ON calendar_events (session_id, city_canonical, starts_at);
+
 -- ===========================================================================
 -- Process instances
 -- ===========================================================================
@@ -220,6 +256,12 @@ CREATE TABLE IF NOT EXISTS query_queue (
                           'LODGING','LODGING_PRICE','CAR')),
     endpoint         TEXT    NOT NULL,
     params_json      TEXT    NOT NULL,
+    -- Which of the mission's streams issued this query, for SOCIAL rows.
+    -- NULL means the mission's single implicit stream (or a pre-v15 row).
+    -- Deliberately unconstrained: stream ids are MISSION vocabulary, and a
+    -- mission vocabulary in a CHECK is the mistake version 12 existed to
+    -- remove. Validated in Python against the loaded pack.
+    stream           TEXT,
     city_id          INTEGER REFERENCES cities(city_id),
     location_id      INTEGER REFERENCES key_locations(location_id),
     dedup_key        TEXT    NOT NULL,   -- canonical hash of endpoint + params
@@ -279,6 +321,10 @@ CREATE TABLE IF NOT EXISTS queue_decisions (
                           'CAP_DEPTH','CITY_NOT_ADMITTED','BUDGET_EXHAUSTED',
                           'NO_MAPPING')),
     source_type      TEXT,
+    -- Which stream a refusal belongs to, when the refused work was one
+    -- stream's. NULL = not stream-scoped. Without it a per-stream refusal
+    -- could not reach that stream's family as a coverage gap.
+    stream           TEXT,
     city_name        TEXT,
     dedup_key        TEXT,
     signal_id        INTEGER REFERENCES signals(signal_id),
@@ -372,6 +418,11 @@ CREATE TABLE IF NOT EXISTS signals (
     -- claim; with it, it is a record.
     collection_basis TEXT,
     -- social ----------------------------------------------------------------
+    -- Which of the mission's streams produced this observation. NULL means the
+    -- implicit stream (a no-streams mission, or a pre-v15 row). Mission
+    -- vocabulary, so no CHECK; the scoring kind and the banding family are
+    -- both derived from it in Python against the loaded pack.
+    stream           TEXT,
     url              TEXT,
     author           TEXT,
     platform         TEXT,
@@ -450,6 +501,21 @@ CREATE INDEX IF NOT EXISTS idx_sig_iter
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sig_dedup ON signals (
     iteration_id,
     signal_type,
+    -- WHERE the observation is about. An observation is distinct per place --
+    -- a post announcing shows in Phoenix AND Chicago is evidence about each
+    -- of them, and correlation scores each city over its own rows, so two
+    -- rows can never meet in one score.
+    --
+    -- Omitting this was measured live: a tour announcement naming both
+    -- session cities wrote one signal, and WHICH city kept it was decided by
+    -- the order the model happened to list them in. The loser's evidence
+    -- vanished with no queue decision, no skip row and no log line. -1
+    -- because city_id is nullable and NULLs must keep colliding here.
+    COALESCE(city_id, -1),
+    -- Streams judge the same URL under different criteria, so one signal per
+    -- (stream, URL) is legitimate. '' keeps pre-stream rows deduplicating
+    -- exactly as before.
+    COALESCE(stream, ''),
     COALESCE(url, ''),
     COALESCE(fr24_id, ''),
     COALESCE(provider_ref, ''),
@@ -491,6 +557,9 @@ CREATE TABLE IF NOT EXISTS triage_skips (
     reason           TEXT    NOT NULL CHECK (reason IN (
                          'STALE','PAYLOAD_UNPARSEABLE','PAYLOAD_NOT_A_LIST',
                          'ITEM_NOT_AN_OBJECT','ITEM_NO_URL')),
+    -- Which stream's gathering recorded the skip, so a rescan on resume can
+    -- recognise its own refusals per stream. NULL = implicit / whole-payload.
+    stream           TEXT,
     -- Enough to reproduce the decision from the row rather than recompute it
     -- against a clock that has moved. For STALE: when the post was observed,
     -- the cutoff in force, and the configured window. For a malformed payload:
@@ -534,6 +603,11 @@ CREATE TABLE IF NOT EXISTS triage_decisions (
                           'MODEL_ERROR')),
     -- Why an item was unusable, when it was. Free text from the validator.
     fault_detail     TEXT,
+    -- Which stream this judgement was made under. Load-bearing for resume:
+    -- a URL judged under one stream and not yet under another must be
+    -- distinguishable, and `raw_id` (the other route to the query's stream)
+    -- is nulled by retention. NULL = implicit stream / pre-v15.
+    stream           TEXT,
     track            TEXT,
     cities_json      TEXT,
     locations_json   TEXT,
@@ -682,6 +756,21 @@ CREATE TABLE IF NOT EXISTS correlations (
     -- an alert can be re-read under the rules that produced its list; see
     -- services/hypotheses.py for why the model is not asked for these.
     alternatives_json TEXT,
+    -- Operator-calendar events that overlapped this correlation's window,
+    -- snapshotted verbatim at scoring time so the row stays self-contained
+    -- after later appends. NULL = predates the feature or the session has no
+    -- calendar; '[]' = a calendar exists and nothing matched. ANNOTATION
+    -- ONLY: nothing in this column ever moves the score or the band.
+    calendar_matches_json TEXT,
+    -- The analytical configuration this score was computed under
+    -- (`receipts.config_fingerprint`, same value the iteration's receipts
+    -- carry). Correlation is the one judgement in this system made without a
+    -- model, so it writes no receipt — and without this the tunables that
+    -- produced a score were recorded NOWHERE. Measured: re-scoring a stored
+    -- iteration produced different numbers, and nothing on the row could say
+    -- whether the engine or the operator's config had moved. NULL on rows
+    -- written before v16.
+    config_hash      TEXT,
     -- 9.10. Per flight kind: whether it was scored against a baseline, what
     -- that baseline was, and what was observed. On the correlation rather than
     -- on each signal because the window spans iterations, so one signal can be

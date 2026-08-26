@@ -25,6 +25,7 @@ guide is about:
 - [The shape of a pack](#the-shape-of-a-pack)
 - [`mission.yaml`](#missionyaml)
 - [`lexicon.yaml`](#lexiconyaml)
+- [`streams.yaml`](#streamsyaml)
 - [`scoring.yaml`](#scoringyaml)
 - [`geography.yaml`](#geographyyaml)
 - [`facilities.yaml`](#facilitiesyaml)
@@ -43,7 +44,9 @@ guide is about:
 ```
 missions/<name>/
   mission.yaml               required — the manifest
-  lexicon.yaml               required
+  lexicon.yaml               one lexicon, one implicit stream — OR:
+  streams.yaml               named streams, each with its own (exactly one
+                             of these two, never both)
   scoring.yaml               required
   geography.yaml             required
   facilities.yaml            required
@@ -109,6 +112,9 @@ files:                       # required in practice — see "The four rules"
   - prompts/relevance-broad.md
   - prompts/alert.md
 
+collects:                    # optional. Default: all four families.
+  - SOCIAL
+
 tracks:                      # required. Any number, one or more.
   - TRACK_ONE
   - TRACK_TWO
@@ -144,6 +150,46 @@ about the case of one word.
 who was acting*, and a signal carrying it is admitted to **every** track — so a
 mission track of that name would be scored against itself and against all the
 others at once. The loader refuses it.
+
+### `collects`
+
+Which of the engine's four data families this mission collects **at all**.
+Omit the key and you collect all four, which is what every pack did before it
+existed.
+
+```yaml
+collects: [SOCIAL]           # social and news only; no flight, no lodging, no cars
+```
+
+A family absent from this list is never queried, never scored, never counted
+in the `data_completeness` denominator, and — the point — **never a coverage
+gap**: nothing was attempted, so nothing failed. A mission that scores only
+chatter should not have to buy flight, lodging and rental-car data in order to
+ignore it, and an operator deploying it should not need three more vendor
+credentials to run a pack that will never call them.
+
+`SOCIAL` is not optional. Every other family is TIPPED by a social judgement,
+so a pack collecting none of it would enqueue nothing at all and report every
+city as quiet.
+
+**The declaration is the only statement of the fact.** A pack that drops a
+family also drops everything downstream of it, and the loader refuses each by
+name if you leave it behind:
+
+- its rows in `scoring.yaml: weights` — a zeroed row would be a second
+  statement that could disagree with the first;
+- its `flight_categories` block, which is required only of a pack collecting
+  FLIGHT;
+- its entries in `hypotheses.yaml` — competing explanations for evidence this
+  pack can never have.
+
+Promoted stream families do not belong here. They are collected *through* the
+social feed and are declared in `streams.yaml`; naming one in `collects` is
+refused for the same reason as anything else that would say one thing twice.
+
+Switching a family off is announced in the startup `describe()` and served on
+`GET /v1/capabilities` as `mission.collects`, because three families that are
+permanently absent must be distinguishable from three that are down.
 
 ### `location_types`
 
@@ -198,6 +244,13 @@ city costs `(groups across all tracks) x (platforms)` social queries — keep
 groups few and broad rather than many and narrow, and check the arithmetic
 against `tipping.max_queries_per_city`.
 
+`lexicon.yaml` describes ONE watch over the whole feed — the **implicit
+stream**. A pack that wants several declares `streams.yaml` instead (below),
+each stream carrying its own lexicon of exactly this shape; declaring both
+files is refused as two answers to one question, and declaring neither is
+refused because the engine would seed no social queries and report every city
+as quiet.
+
 Every track needs an entry. An absent one and an empty one search identically
 and mean opposite things, so the loader refuses the absent one.
 
@@ -206,6 +259,88 @@ small, stable, and needs to be auditable: someone asking "why did you search
 that" deserves a better answer than "the model chose it". Because it lives in
 the pack it is covered by the pack digest on every receipt — which it was not
 when it lived in Python.
+
+---
+
+## `streams.yaml`
+
+Named watches over the social feed — optional, and mutually exclusive with
+`lexicon.yaml`. Use it when one feed carries more than one kind of evidence:
+chatter and news reporting are different instruments, and two watches with
+different search terms are different questions.
+
+```yaml
+chatter:                        # lower snake case — a stream id IS a scoring kind
+  platforms: [twitter, reddit]  # non-empty subset of: twitter, reddit, news
+  # family omitted -> SOCIAL: a sub-kind of the SOCIAL family, exactly as
+  # flight_M and flight_J are sub-kinds of FLIGHT
+  lexicon:                      # same shape and rules as lexicon.yaml
+    TRACK_ONE: [["first term", "second term"]]
+
+wire_report:
+  platforms: [news]
+  family: WIRE_REPORT           # promoted: its OWN family for banding
+  relevance_strict:             # optional; inherits the mission leg per leg
+    file: prompts/wire-strict.md
+    version: your-wire/1-strict
+  lexicon:
+    TRACK_ONE: [["another group"]]
+```
+
+Per stream:
+
+- **`platforms`** — required. Which of the engine's three endpoints this
+  stream searches. The operator's `apidirect.platforms` remains a
+  deployment-wide kill switch: the effective set is the intersection, and a
+  stream it empties is recorded per city as a `NO_MAPPING` refusal naming the
+  stream — absent, never quiet.
+- **`family`** — where the stream counts in banding. Omitted or `SOCIAL`, it
+  is a sub-kind of the SOCIAL family: separate weight, separate visible
+  contribution, one family for `distinct_types` and completeness. Any other
+  upper-snake name **promotes** it to a family of its own — it then counts
+  toward `distinct_types`, joins the `data_completeness` denominator, and may
+  carry its own entries in `hypotheses.yaml`. `FLIGHT`, `LODGING` and `CAR`
+  are refused (those families are collected by their own connectors), as is
+  `UNKNOWN`. Two streams may share one promoted family.
+- **`lexicon`** — required, per stream, the `lexicon.yaml` rules verbatim.
+- **`relevance_strict` / `relevance_broad`** — optional `{file, version}`
+  entries overriding the mission-level legs **per leg independently**. A
+  stream is judged in its own model batches under its own system prompt, and
+  each receipt's `prompt_hash` and `prompt_version` are that stream's.
+
+**Weights move with the streams.** With `streams.yaml` declared, each track's
+row in `scoring.yaml` names the stream ids instead of `social`:
+
+```yaml
+weights:
+  TRACK_ONE: {chatter: 0.20, wire_report: 0.15, flight_M: 0.35,
+              flight_J: 0.10, lodging: 0.10, car: 0.10}
+```
+
+The seeding fan-out becomes, per city, the **sum over streams** of
+`(groups across all tracks) x (that stream's effective platforms)` — size
+`tipping.max_queries_per_city` accordingly.
+
+Three consequences worth deciding with your eyes open:
+
+- **The same URL is judged once per stream.** Different criteria, different
+  judgements, and one signal per (stream, URL). Structural gates stay honest:
+  publishers and claims are counted over the union of all streams, so a wire
+  story surfacing in two streams is still ONE claim and cannot manufacture
+  the two-report floor.
+- **Overlapping queries pay twice.** Two streams issuing an identical search
+  each fetch their own copy — a dedup refusal for the second would make its
+  coverage silently depend on the first's. Keep stream lexicons or platforms
+  disjoint unless the spend is intended.
+- **A promoted family loosens banding deliberately.** With `WIRE_REPORT`
+  promoted, chatter + wire coverage alone reaches the two-type band that
+  previously required a physical signal. That is the point of promoting — and
+  the reason it is a declaration, not a default. Retune
+  `correlation.band_*_min_types` with the family count in mind.
+
+The stream id `social` is legal and names the implicit stream: one stream
+called `social` over every platform, with the mission lexicon and no prompt
+overrides, behaves byte-identically to declaring no streams at all.
 
 ---
 
@@ -230,10 +365,12 @@ baselined_categories: [J, T, H]
 
 ### `weights`
 
-The five **scoring kinds** are engine vocabulary and cannot be changed: they name
-the four data families this system collects, with FLIGHT split by FR24 category
-because a military-coded airframe and a business jet are different evidence. You
-choose the numbers, not the rows.
+The five **scoring kinds** are engine vocabulary: they name the four data
+families this system collects, with FLIGHT split by FR24 category because a
+military-coded airframe and a business jet are different evidence. You choose
+the numbers, not the rows — with one exception the pack itself creates: a pack
+declaring `streams.yaml` replaces the single `social` row with one row per
+stream id, and the loader's refusals name exactly the set in force.
 
 Every kind must be present for every track, and each is `0.0`–`1.0`. **Write
 `0.0` out.** An omitted weight and an explicit zero score identically and mean
@@ -245,6 +382,9 @@ score of 1.0 on perfect evidence; one summing to 0.6 cannot. That is a choice yo
 are making either way, so make it deliberately.
 
 ### `flight_categories`
+
+Required only of a pack whose `collects` includes `FLIGHT`; omit the block
+entirely otherwise.
 
 Which FR24 category codes each track's flight queries ask for — `M` (military
 and government), `J` (business jets), `T` (general aviation), `H` (helicopters).
@@ -391,6 +531,12 @@ cannot.
 Leave it out when nothing does — an unanswered alternative is more useful to a
 reader than a manufactured rebuttal. Do not write the corroboration note
 yourself; the engine appends its own when more than one family contributed.
+
+One code is reserved: **`SCHEDULED_EVENT`** belongs to the engine, which
+appends it when the operator's calendar has events overlapping a correlation's
+window. A pack claiming it is refused at load — a mission entry under that code
+would read exactly like the engine's, and a reader could not tell whose claim
+they were weighing.
 
 ---
 
@@ -567,6 +713,21 @@ The loader refuses by name. This is the whole list.
 | `prompts.<slot> needs <keys>` | A slot missing `file` or `version` |
 | `prompt is empty` | A prompt file with no content |
 | `must contain the placeholder` | The triage prompt lacks its `{relevance}` slot |
+| `streams.yaml and lexicon.yaml are both declared` | Two answers to one question |
+| `neither lexicon.yaml nor streams.yaml` | No social collection is defined at all |
+| `declares no streams` | An empty `streams.yaml`; use `lexicon.yaml` for one implicit stream |
+| `must be lower snake case` | A stream id that is not `[a-z][a-z0-9_]*` |
+| `collides with an engine scoring kind` | A stream id shadowing `flight_M`, `flight_J`, `lodging` or `car` |
+| `platforms is required` | A stream with no platform would collect nothing and report it as quiet |
+| `the engine collects` | A platform name that is not `twitter`, `reddit` or `news` |
+| `lexicon is required` | A stream with no search terms would seed nothing |
+| `collected by their own connectors` | A stream claiming the FLIGHT, LODGING or CAR family |
+| `does not exist in this pack, but the loader asked for` | A file a loader branch expected; declare it or report an engine bug |
+| `reserved by the engine for operator-calendar matches` | A hypothesis code claiming `SCHEDULED_EVENT` |
+| `collects must be a non-empty list` | `collects` is empty, or is not a list |
+| `is not an engine family` | `collects` names something outside the engine's four |
+| `collects lists <x> twice` | A repeated family |
+| `collects must include SOCIAL` | Every other family is tipped by a social judgement |
 
 ---
 

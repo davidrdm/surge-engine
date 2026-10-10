@@ -103,7 +103,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "api_key_env": "APIDIRECT_API_KEY",
         "base_url": "https://apidirect.io",
         "platforms": ["twitter", "reddit", "news"],
+        # Vendor ranges, verified against apidirect.io/docs: twitter takes
+        # `pages` 1-10 and fetches that MANY pages; reddit takes `page` 1-5
+        # and SELECTS one. They are different parameters with different
+        # meanings, and the engine sends each endpoint its own.
         "twitter_pages": 2,
+        "reddit_page": 1,
         "news_limit": 50,
         # 7d, not 1d. Measured live: all four news queries returned ZERO
         # articles at 1d while twitter and reddit returned 240 posts. This is

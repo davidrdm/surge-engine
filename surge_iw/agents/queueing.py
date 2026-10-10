@@ -55,6 +55,74 @@ SOCIAL_ENDPOINTS: dict[str, str] = {
     "news": EP_NEWS,
 }
 
+#: The recency values the news endpoint documents. Anything else is refused
+#: rather than sent: an unrecognised value is silently ignored by the vendor,
+#: which would leave an operator believing a window was in force when the
+#: whole index was being searched.
+NEWS_TIME_WINDOWS: frozenset[str] = frozenset(
+    {"anytime", "1h", "1d", "7d", "1y"})
+
+
+def _clamp(value: Any, low: int, high: int) -> int:
+    """An integer inside the vendor's documented range.
+
+    Out-of-range parameters are not errors at this vendor — they are ignored,
+    and the endpoint quietly uses its default. Clamping keeps a misconfigured
+    setting visible as "fewer pages than asked for" rather than as "none of
+    the pages I asked for", which is what an ignored parameter produces.
+    """
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = low
+    return max(low, min(high, number))
+
+
+def _facility_groups(place: str, names: Sequence[str],
+                     limit: int = 500) -> list[tuple[str, ...]]:
+    """The registered facility names, chunked into query-sized groups.
+
+    One group where they fit, more where they do not. Chunking rather than
+    truncating: a facility silently dropped off the end of a 500-character
+    query is an institution nobody is watching, and the operator who
+    registered it would have no way to know.
+    """
+    groups: list[tuple[str, ...]] = []
+    current: list[str] = []
+    # Every term costs its own quotes plus the " OR " that joins it.
+    overhead = len(place) + 3
+    # Sorted HERE rather than trusting the caller: the rendered query text is
+    # what the dedup key hashes, so a different registration order would
+    # otherwise produce a different key for the same set of places and
+    # re-buy yesterday's collection.
+    for name in sorted(names, key=lambda n: " ".join(str(n).split()).lower()):
+        clean = " ".join(str(name).split())
+        if not clean:
+            continue
+        candidate = current + [clean]
+        rendered = overhead + sum(len(t) + 6 for t in candidate)
+        if current and rendered > limit:
+            groups.append(tuple(current))
+            current = [clean]
+        else:
+            current = candidate
+    if current:
+        groups.append(tuple(current))
+    return groups
+
+
+def _time_published(settings: Mapping[str, Any]) -> str:
+    """The news recency window, or the vendor's own default.
+
+    NOTE, measured: this vendor does NOT reliably honour the filter. A live
+    Oakland sweep asked for `7d` — a documented value — and was returned
+    articles from 2018 and 2025. The engine's own freshness cut in
+    `agents/triage.py` is the only recency control that actually holds, and
+    this parameter is best read as a hint that reduces waste when it works.
+    """
+    value = str(settings.get("news_time_published", "1d"))
+    return value if value in NEWS_TIME_WINDOWS else "anytime"
+
 # Priorities: lower runs first, and lower survives the budget hard stop.
 PRIO_FLIGHT = 10
 PRIO_ESCALATION = 15
@@ -259,8 +327,18 @@ class QueueAgent:
     # Mode: seed (stage 1)
     # ==================================================================
 
+    def _facility_names(self, city_id: int) -> list[str]:
+        """The names an operator registered for this city, in a stable order.
+
+        Sorted so the chunking above is deterministic: the same registrations
+        always produce the same queries, and therefore the same dedup keys.
+        """
+        return sorted(
+            str(row["name"]) for row in self.db.get_key_locations(city_id))
+
     def build_social_queries(
-        self, city_name: str, state: str | None, tracks: Iterable[str]
+        self, city_name: str, state: str | None, tracks: Iterable[str],
+        facilities: Sequence[str] = (),
     ) -> list[tuple[str | None, str, dict[str, Any]]]:
         """Social queries for one city: (stream, endpoint, params) triples.
 
@@ -299,31 +377,67 @@ class QueueAgent:
                 if not platforms:
                     queries.append((stream_id, _STREAM_DISABLED, {}))
                     continue
-            for track in tracks:
-                for group in lexicon.get(track, ()):
-                    terms = " OR ".join(f'"{t}"' for t in group)
-                    query_text = f"{place} ({terms})"[:500]
-                    for platform in platforms:
-                        endpoint = SOCIAL_ENDPOINTS.get(platform)
-                        if endpoint is None:
-                            continue
-                        if endpoint == EP_NEWS:
-                            params: dict[str, Any] = {
-                                "query": query_text,
-                                "limit": int(settings.get("news_limit", 50)),
-                                "time_published": settings.get(
-                                    "news_time_published", "1d"
-                                ),
-                            }
-                        else:
-                            params = {
-                                "query": query_text,
-                                "pages": int(settings.get("twitter_pages", 2)),
-                                "sort_by": "most_recent",
-                            }
-                            if settings.get("get_sentiment"):
-                                params["get_sentiment"] = True
-                        queries.append((stream_id, endpoint, params))
+            groups: list[tuple[str, ...]] = [
+                group for track in tracks for group in lexicon.get(track, ())
+            ]
+            # A stream that asks for it also searches the session's registered
+            # key locations BY NAME. Measured live: a sweep whose terms all
+            # DESCRIBED a kind of place returned nothing for a city whose
+            # fourteen registered institutions were never named in any query —
+            # someone studying a specific building writes its name, not a
+            # description of it. Chunked because facility lists are operator
+            # data of unbounded length and the vendor caps a query at 500
+            # characters.
+            if stream_id is not None and facilities and next(
+                (st.include_facilities for st in mission.streams
+                 if st.id == stream_id), False
+            ):
+                groups.extend(_facility_groups(place, facilities))
+            for group in groups:
+                terms = " OR ".join(f'"{t}"' for t in group)
+                query_text = f"{place} ({terms})"[:500]
+                for platform in platforms:
+                    endpoint = SOCIAL_ENDPOINTS.get(platform)
+                    if endpoint is None:
+                        continue
+                    if endpoint == EP_NEWS:
+                        params: dict[str, Any] = {
+                            "query": query_text,
+                            # Vendor range 1-100.
+                            "limit": _clamp(
+                                settings.get("news_limit", 50), 1, 100),
+                            "time_published": _time_published(settings),
+                        }
+                    elif endpoint == EP_TWITTER:
+                        params = {
+                            "query": query_text,
+                            # Vendor range 1-10. "number of pages to
+                            # fetch", so this multiplies what one request
+                            # returns.
+                            "pages": _clamp(
+                                settings.get("twitter_pages", 2), 1, 10),
+                            "sort_by": "most_recent",
+                        }
+                        if settings.get("get_sentiment"):
+                            params["get_sentiment"] = True
+                    else:
+                        # Reddit is NOT twitter. Its parameter is `page`
+                        # (singular, 1-5) and it SELECTS a page rather
+                        # than fetching that many — the two endpoints
+                        # only look alike. Sending twitter's `pages` here
+                        # was an unknown parameter to the vendor: it was
+                        # dropped, reddit fell back to its default single
+                        # page, and an operator raising `twitter_pages`
+                        # silently got no more reddit than before.
+                        params = {
+                            "query": query_text,
+                            "page": _clamp(
+                                settings.get("reddit_page", 1), 1, 5),
+                            "sort_by": "most_recent",
+                        }
+                        if settings.get("get_sentiment"):
+                            params["get_sentiment"] = True
+                    queries.append((stream_id, endpoint, params))
         return queries
 
     def run_seed(self, iteration_id: int, session_id: int) -> dict[str, int]:
@@ -337,7 +451,8 @@ class QueueAgent:
 
         for city in self.db.get_cities(session_id):
             for stream, endpoint, params in self.build_social_queries(
-                city["name"], city["state"], tracks
+                city["name"], city["state"], tracks,
+                facilities=self._facility_names(int(city["city_id"])),
             ):
                 if endpoint == _STREAM_DISABLED:
                     self.db.record_queue_decision(
@@ -853,7 +968,8 @@ class QueueAgent:
             if city is None:
                 continue
             for stream, endpoint, params in self.build_social_queries(
-                city["name"], city["state"], tracks
+                city["name"], city["state"], tracks,
+                facilities=self._facility_names(int(city["city_id"])),
             ):
                 if endpoint == _STREAM_DISABLED:
                     continue          # already recorded per city at seed time

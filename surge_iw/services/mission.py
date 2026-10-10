@@ -91,6 +91,7 @@ _STREAM_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 #: Keys a stream entry in streams.yaml may carry.
 STREAM_KEYS: frozenset[str] = frozenset({
     "platforms", "family", "lexicon", "relevance_strict", "relevance_broad",
+    "include_facilities",
 })
 
 #: The relevance legs a stream may override, per leg independently.
@@ -198,6 +199,14 @@ class Stream:
     #: slot -> (prompt text, version label), for the legs this stream
     #: overrides. A missing slot inherits the mission-level leg.
     relevance: dict[str, tuple[str, str]] = field(default_factory=dict)
+    #: Also search the session's registered key locations BY NAME, as one
+    #: extra query group per platform. Off unless a stream asks for it: it
+    #: costs queries, and only a stream about PLACES has any use for it.
+    #: Measured live: a sweep whose terms all DESCRIBED a kind of place
+    #: returned nothing at all for a city whose fourteen registered
+    #: institutions were never named in any query. Someone studying a
+    #: specific building writes its name, not a description of it.
+    include_facilities: bool = False
 
 
 @dataclass(frozen=True)
@@ -912,9 +921,16 @@ def _streams(root: Path, raw: Any, tracks: tuple[str, ...]
                 raise MissionError(f"{leg['file']}: prompt is empty")
             relevance[slot] = (text, str(leg["version"]))
 
+        facilities = entry.get("include_facilities", False)
+        if not isinstance(facilities, bool):
+            raise MissionError(
+                f"{where}: include_facilities must be true or false, got "
+                f"{facilities!r}")
+
         out.append(Stream(id=stream_id, platforms=tuple(platforms),
                           family=family, lexicon=lexicon,
-                          relevance=relevance))
+                          relevance=relevance,
+                          include_facilities=facilities))
     return tuple(out)
 
 

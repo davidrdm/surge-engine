@@ -728,3 +728,124 @@ class TestSeeding:
             not_before=utcnow() + timedelta(hours=6),
         )
         assert agent.run_seed(iteration, session)["adopted"] == 0
+
+
+class TestTheVendorParameterContract:
+    """Each API Direct endpoint has its own parameter vocabulary, verified
+    against apidirect.io/docs. They look alike and are not: twitter takes
+    `pages` (1-10, "how many to fetch"), reddit takes `page` (1-5, "which
+    one"), and only news has a recency filter.
+
+    Sending the wrong one is not an error at this vendor — the parameter is
+    ignored and the endpoint uses its default. That is the worst possible
+    failure mode, because collection silently shrinks while the operator's
+    setting says otherwise, which is exactly what happened: reddit was sent
+    twitter's `pages` and quietly returned a single page throughout.
+    """
+
+    def _params(self, db, config, endpoint):
+        config.setdefault("apidirect", {})["platforms"] = [
+            "twitter", "reddit", "news"]
+        out = [p for _s, ep, p in QueueAgent(db, config).build_social_queries(
+            "Phoenix", "AZ", ["AIRSHOW"]) if ep == endpoint]
+        assert out, endpoint
+        return out[0]
+
+    def test_twitter_gets_pages_and_reddit_gets_page(self, db, config):
+        twitter = self._params(db, config, "/v1/twitter/posts")
+        reddit = self._params(db, config, "/v1/reddit/posts")
+        assert "pages" in twitter and "page" not in twitter
+        assert "page" in reddit and "pages" not in reddit, (
+            "reddit was sent twitter's parameter; the vendor ignores it and "
+            "falls back to one page")
+
+    def test_each_is_clamped_to_its_own_documented_range(self, db, config):
+        config["apidirect"]["twitter_pages"] = 99
+        config["apidirect"]["reddit_page"] = 99
+        assert self._params(db, config, "/v1/twitter/posts")["pages"] == 10
+        assert self._params(db, config, "/v1/reddit/posts")["page"] == 5
+        config["apidirect"]["twitter_pages"] = 0
+        config["apidirect"]["reddit_page"] = 0
+        assert self._params(db, config, "/v1/twitter/posts")["pages"] == 1
+        assert self._params(db, config, "/v1/reddit/posts")["page"] == 1
+
+    def test_news_limit_is_clamped_and_recency_is_validated(self, db, config):
+        config["apidirect"]["news_limit"] = 5000
+        config["apidirect"]["news_time_published"] = "7d"
+        news = self._params(db, config, "/v1/news/articles")
+        assert news["limit"] == 100
+        assert news["time_published"] == "7d"
+
+    def test_an_undocumented_recency_value_falls_back_to_anytime(
+        self, db, config
+    ):
+        """An unrecognised value is silently ignored by the vendor, which
+        would leave an operator believing a window was in force while the
+        whole index was searched. Say `anytime` and mean it."""
+        config["apidirect"]["news_time_published"] = "3 weeks"
+        assert self._params(
+            db, config, "/v1/news/articles")["time_published"] == "anytime"
+
+    def test_no_social_endpoint_is_sent_a_recency_filter(self, db, config):
+        """Neither twitter nor reddit documents one. Sending a parameter the
+        endpoint does not have would read, to whoever next opens the queue,
+        as a recency guarantee the collection never had."""
+        for endpoint in ("/v1/twitter/posts", "/v1/reddit/posts"):
+            params = self._params(db, config, endpoint)
+            assert not {"time_published", "since", "from_date"} & set(params)
+
+    def test_every_rendered_query_fits_the_vendor_limit(self, db, config):
+        """500 characters, documented on all three endpoints."""
+        for _s, ep, params in QueueAgent(db, config).build_social_queries(
+            "Phoenix", "AZ", ["AIRSHOW"]
+        ):
+            if ep.startswith("/v1"):
+                assert len(params["query"]) <= 500, ep
+
+
+class TestFacilityQueries:
+    """A stream may also search the session's registered key locations by
+    name. Off by default, so every existing pack is unchanged."""
+
+    def _queries(self, db, config, facilities, flag=True):
+        agent = QueueAgent(db, config)
+        streams = getattr(agent._mission(), "streams", ())
+        if streams:                       # opt the first stream in, in memory
+            object.__setattr__(streams[0], "include_facilities", flag)
+        return agent.build_social_queries(
+            "Phoenix", "AZ", ["AIRSHOW"], facilities=facilities)
+
+    def test_facilities_are_ignored_unless_a_stream_asks(self, db, config):
+        base = len(self._queries(db, config, [], flag=False))
+        with_names = len(self._queries(db, config, ["A Hall", "B Hall"],
+                                       flag=False))
+        assert base == with_names, "a stream that did not opt in must not grow"
+
+    def test_an_opted_in_stream_searches_them_by_name(self, db, config):
+        got = self._queries(db, config, ["Riverside Fairground"])
+        assert any("Riverside Fairground" in p.get("query", "")
+                   for _s, _e, p in got)
+
+    def test_a_long_list_is_chunked_rather_than_truncated(self, db, config):
+        """A facility silently dropped off the end of a 500-character query is
+        an institution nobody is watching, and the operator who registered it
+        would have no way to know."""
+        names = [f"Community Centre Number {i:02d}" for i in range(40)]
+        got = self._queries(db, config, names)
+        facility_queries = [p["query"] for _s, _e, p in got
+                            if "Community Centre" in p.get("query", "")]
+        assert len(facility_queries) > 2, "should have chunked"
+        for query in facility_queries:
+            assert len(query) <= 500
+        joined = " ".join(facility_queries)
+        for name in names:
+            assert name in joined, f"{name} was dropped"
+
+    def test_the_chunking_is_deterministic(self, db, config):
+        """Same registrations must give the same queries, or the dedup key
+        moves and yesterday's collection is re-bought."""
+        names = ["Zeta Hall", "Alpha Hall", "Mid Hall"]
+        first = [p.get("query") for _s, _e, p in self._queries(db, config, names)]
+        second = [p.get("query") for _s, _e, p in
+                  self._queries(db, config, list(reversed(names)))]
+        assert first == second

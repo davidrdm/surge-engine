@@ -686,8 +686,24 @@ class TestTheEngineHoldsNoMissionData:
     #: about their catalogue rather than about anyone's mission — one rental
     #: model name collides with a search term in a pack shipped here.
     #: Everything else in the repository is the engine.
+    # `inputs/` joins this set for the same reason `missions/` is here: it is
+    # operator DATA, not engine source, docs or tests. An operator's geography
+    # file names the operator's own facilities and places — that is the
+    # operator looking, the exact opposite of the engine hard-coding who to
+    # look for, and those names will naturally include the vocabulary of
+    # whatever mission the deployment runs. The loader never reads `inputs/` as
+    # definition (it is chosen per session by name), the shipped `example*.yaml`
+    # are templates, and without this exemption the scan fires on any real
+    # deployment that keeps its geography in the default input directory.
+    #: `config.yaml` is the OPERATOR's own deployment config, and
+    #: `mission.name` in it is required to name the pack being run — naming a
+    #: mission there is the file's purpose, not a leak. The tracked template
+    #: `config.example.yaml` is still scanned and must stay mission-neutral;
+    #: only the untracked local file is exempt.
+    SKIP_FILES = {"config.yaml"}
+
     SKIP = {".git", "__pycache__", ".venv", ".pytest_cache", ".hypothesis",
-            "missions", "fixtures", "node_modules"}
+            "missions", "inputs", "fixtures", "node_modules"}
 
     def engine_files(self):
         root = self.ENGINE.parent
@@ -696,6 +712,8 @@ class TestTheEngineHoldsNoMissionData:
                                                      ".wal"):
                 continue
             if set(path.relative_to(root).parts) & self.SKIP:
+                continue
+            if path.name in self.SKIP_FILES:
                 continue
             yield path
 

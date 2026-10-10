@@ -31,7 +31,7 @@ info:
     incomplete evidence, not a quieter one.
 
     '
-  version: 0.3.0
+  version: 0.3.1
 paths:
   /v1/sessions:
     post:

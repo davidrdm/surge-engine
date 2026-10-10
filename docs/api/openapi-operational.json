@@ -3,7 +3,7 @@
   "info": {
     "title": "Surge I&W",
     "description": "Tactical indications and warning from four independent open sources.\n\nAlerts correlate four independent sources — social chatter, military and charter\nflights, short-term-rental availability, and rental-car availability — into a\ndeterministic confidence score. The score is computed in Python from a weighted\nmodel whose working is recorded per alert; a language model writes the summary\nsentence and cannot change the number.\n\nRead `/v1/alerts/{id}/evidence` before acting on a score. It resolves every\ncontributing signal back to the raw payload and the queue row that fetched it,\nand reports the band rule that fired and any collection gap that capped it.\n\n**A failure is never an absence of threat.** A source that could not be\ncollected lowers `data_completeness`, caps the band below HIGH, and is named in\nthe alert's caveat. An alert on a PARTIAL iteration is a real finding made from\nincomplete evidence, not a quieter one.\n",
-    "version": "0.3.0"
+    "version": "0.3.1"
   },
   "paths": {
     "/v1/sessions": {
